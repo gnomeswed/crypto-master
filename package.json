@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "bot": "tsx daemon/bot.ts"
+    "bot": "tsx daemon/bot.ts",
+    "build:bot": "tsc daemon/bot.ts --outDir dist --module commonjs --target esnext --skipLibCheck --esModuleInterop"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
