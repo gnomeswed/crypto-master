@@ -16,7 +16,8 @@ import {
   ArrowDownCircle,
   ShieldAlert,
   Clock,
-  LayoutDashboard
+  LayoutDashboard,
+  XCircle
 } from 'lucide-react';
 
 declare global {
@@ -25,7 +26,6 @@ declare global {
   }
 }
 
-// Sub-componente para o Gráfico TradingView
 function TradingViewChart({ symbol }: { symbol: string }) {
   const container = useRef<HTMLDivElement>(null);
 
@@ -75,54 +75,47 @@ const CHECKLIST_GLOSSARY: Record<string, { label: string; desc: string }> = {
 };
 
 export default function SignalAnalyzer({ externalPair }: { externalPair: string }) {
-  const { scannedSignals } = useSignals();
+  const { scannedSignals, activeTrades } = useSignals();
   const [showGlossary, setShowGlossary] = useState(false);
   const [riskSettings, setRiskSettings] = useState({ banca: 1000, risco: 1 });
   const [isExecuting, setIsExecuting] = useState(false);
   
-  // Função para executar o trade simulado
+  // Verifica se há um trade ativo para este par
+  const currentTrade = activeTrades.find(t => t.par === externalPair);
+  const activeSignal = scannedSignals.find(s => s.pair === externalPair);
+
   const handleExecuteTrade = async () => {
-    const activeSingalLocal = scannedSignals.find(s => s.pair === externalPair);
-    if (!activeSingalLocal || !activeSingalLocal.setup) return;
+    if (!activeSignal || !activeSignal.setup) return;
     setIsExecuting(true);
     
     try {
       const { executeTrade } = (window as any).signalContextActions || {};
       if (executeTrade) {
-        await executeTrade(externalPair, 10, 10); // R$10 com 10x Alavancagem
-        alert(`🚀 TRADE EXECUTADO: ${externalPair} | R$ 10.00 | 10x`);
-      } else {
-        alert('Aguarde o carregamento do motor...');
+        await executeTrade(externalPair, 10, 10); 
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsExecuting(false);
-    }
+    } catch (err) { console.error(err); } 
+    finally { setIsExecuting(false); }
   };
   
-  const activeSignal = scannedSignals.find(s => s.pair === externalPair);
   const checklist = activeSignal?.checklist || {};
   const reasons = activeSignal?.reasons || [];
   const setup = activeSignal?.setup;
   const session = (activeSignal as any)?.session;
   const bias = activeSignal?.bias ?? 50;
+  const currentPrice = parseFloat(activeSignal?.lastPrice || '0');
 
-  useEffect(() => {
-    const sBanca = localStorage.getItem('trade_banca') || '1000';
-    const sRisco = localStorage.getItem('trade_risco') || '1';
-    setRiskSettings({ banca: parseFloat(sBanca), risco: parseFloat(sRisco) });
-  }, [activeSignal]);
+  // Cálculo de PnL em tempo real
+  let pnlUsdt = 0;
+  let pnlPcnt = 0;
+  if (currentTrade && currentPrice > 0) {
+    const isLong = currentTrade.direcao === 'LONG';
+    const diff = isLong ? (currentPrice - currentTrade.precoEntrada) : (currentTrade.precoEntrada - currentPrice);
+    const movePcnt = diff / currentTrade.precoEntrada;
+    pnlPcnt = movePcnt * (currentTrade.alavancagem || 1) * 100;
+    pnlUsdt = (currentTrade.capitalSimulado || 0) * movePcnt * (currentTrade.alavancagem || 1);
+  }
 
   const changePcnt = parseFloat(activeSignal?.priceChange24h || '0') * 100;
-  const current = parseFloat(activeSignal?.lastPrice || '0');
-  
-  let positionSize = 0;
-  if (setup && current > 0) {
-    const riskAmount = (riskSettings.banca * (riskSettings.risco / 100));
-    const priceRisk = Math.abs(setup.entry - setup.sl);
-    positionSize = riskAmount / priceRisk;
-  }
 
   return (
     <div className="flex flex-col h-full relative z-10 gap-4">
@@ -146,9 +139,12 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
               <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${activeSignal?.action === 'Long' ? 'bg-emerald-500 text-white' : activeSignal?.action === 'Short' ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
                 {activeSignal?.action || 'BUSCANDO'}
               </span>
+              {currentTrade && (
+                <span className="bg-brand-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded animate-pulse">POSIÇÃO ATIVA</span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
-               <span>${current.toFixed(4)}</span>
+               <span>${currentPrice.toFixed(4)}</span>
                <span className={changePcnt >= 0 ? 'text-emerald-500' : 'text-red-500'}>({changePcnt >= 0 ? '+' : ''}{changePcnt.toFixed(2)}%)</span>
             </div>
           </div>
@@ -160,30 +156,16 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
             <span>LONG</span>
           </div>
           <div className="w-full h-2 bg-slate-900 rounded-full border border-slate-800 relative overflow-visible">
-             <div 
-               className={`absolute top-0 bottom-0 transition-all duration-1000 ${bias >= 50 ? 'bg-emerald-500 left-1/2' : 'bg-red-500 right-1/2'}`}
-               style={{ width: `${Math.abs(bias - 50)}%` }}
-             ></div>
-             <div 
-               className="absolute top-[-5px] w-2 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] z-10 transition-all duration-1000" 
-               style={{ left: `${bias}%` }}
-             ></div>
+             <div className={`absolute top-0 bottom-0 transition-all duration-1000 ${bias >= 50 ? 'bg-emerald-500 left-1/2' : 'bg-red-500 right-1/2'}`} style={{ width: `${Math.abs(bias - 50)}%` }}></div>
+             <div className="absolute top-[-5px] w-2 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] z-10 transition-all duration-1000" style={{ left: `${bias}%` }}></div>
           </div>
           <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Probabilidade: {bias}%</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
-        
         <div className="lg:col-span-8 flex flex-col gap-4">
-           {/* GRÁFICO REAL */}
            <div className="saas-card p-2 flex flex-col gap-2">
-              <div className="flex items-center justify-between px-2 pt-1">
-                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                    <LayoutDashboard className="w-3 h-3" /> Análise de Pavios & Liquidez
-                 </h3>
-                 <span className="text-[9px] text-slate-600 font-mono">Bybit Perpetual M15</span>
-              </div>
               <TradingViewChart symbol={externalPair} />
            </div>
 
@@ -202,31 +184,58 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
         </div>
 
         <div className="lg:col-span-4 flex flex-col gap-4">
-          <div className="saas-card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Critérios SMC</h3>
-              <button onClick={() => setShowGlossary(!showGlossary)} className="text-brand-400 hover:text-brand-300">
-                <HelpCircle className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-1">
-              {Object.keys(CHECKLIST_GLOSSARY).map((key) => {
-                if (key === 'volumeAlinhado' && !checklist[key]) return null;
-                const checked = checklist[key as keyof SMCChecklist];
-                const info = CHECKLIST_GLOSSARY[key];
-                return (
-                  <div key={key} className={`border p-2 rounded-xl flex items-center gap-2.5 transition-all ${checked ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/20 border-slate-800/40 opacity-40'}`}>
-                    <div className={`w-3.5 h-3.5 rounded-full border ${checked ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 flex items-center justify-center' : 'bg-slate-950 border-slate-800'}`}>
-                      {checked && <CheckCircle2 className="w-2.5 h-2.5" />}
-                    </div>
-                    <span className={`text-[10px] font-bold ${checked ? 'text-slate-200' : 'text-slate-600'}`}>{info.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {currentTrade ? (
+            <div className="bg-slate-950 rounded-3xl border-2 border-brand-500/30 p-6 flex flex-col gap-6 shadow-saas-glow h-full">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-brand-400 uppercase tracking-widest px-3 py-1 bg-brand-500/10 rounded-full">Operação Hunter</span>
+                <span className="text-[10px] font-mono text-slate-500">{new Date(currentTrade.dataHora).toLocaleTimeString()}</span>
+              </div>
 
-          {setup ? (
+              <div className="text-center">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Resultado (Live)</p>
+                 <h4 className={`text-4xl font-black font-mono tracking-tighter ${pnlUsdt >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {pnlUsdt >= 0 ? '+' : ''}${pnlUsdt.toFixed(2)}
+                 </h4>
+                 <span className={`text-sm font-black px-2 py-0.5 rounded ${pnlPcnt >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-500'}`}>
+                    {pnlPcnt >= 0 ? '+' : ''}{pnlPcnt.toFixed(2)}% ROI
+                 </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-slate-900 shadow-inner p-3 rounded-2xl border border-slate-800">
+                    <span className="text-[8px] font-bold text-slate-600 uppercase block mb-1">Entrada</span>
+                    <span className="text-xs font-mono text-white font-bold">${currentTrade.precoEntrada.toFixed(4)}</span>
+                 </div>
+                 <div className="bg-slate-900 shadow-inner p-3 rounded-2xl border border-slate-800">
+                    <span className="text-[8px] font-bold text-slate-600 uppercase block mb-1">Preço Atual</span>
+                    <span className="text-xs font-mono text-brand-400 font-bold">${currentPrice.toFixed(4)}</span>
+                 </div>
+              </div>
+
+              <div className="space-y-3">
+                 <div className="flex justify-between items-center text-[9px] uppercase font-bold text-slate-500 px-1">
+                    <span>Progresso p/ Alvo</span>
+                    <span>{Math.min(100, Math.max(0, (pnlPcnt / (currentTrade.rr * 10 / 2)) * 100)).toFixed(0)}%</span>
+                 </div>
+                 <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                    <div 
+                      className={`h-full transition-all duration-1000 ${pnlUsdt >= 0 ? 'bg-emerald-500' : 'bg-red-500 opacity-30'}`}
+                      style={{ width: `${Math.min(100, Math.max(5, (pnlPcnt / (currentTrade.rr * 10 / 2)) * 100))}%` }}
+                    />
+                 </div>
+              </div>
+
+              <div className="mt-auto space-y-2">
+                 <button className="w-full py-4 bg-slate-100 hover:bg-white text-slate-900 font-black text-[11px] uppercase tracking-widest rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Fechar c/ Lucro Real
+                 </button>
+                 <p className="text-[10px] text-slate-600 text-center font-bold px-4">
+                    Monitoramento 24h na nuvem ativo para esta posição.
+                 </p>
+              </div>
+            </div>
+          ) : setup ? (
             <div className={`p-5 rounded-3xl border-2 shadow-2xl bg-slate-950 ${activeSignal?.action === 'Long' ? 'border-emerald-500/30' : 'border-red-500/30'}`}>
               <span className="text-[9px] font-black uppercase text-slate-600 tracking-widest block mb-1">Gatilho Hunter</span>
               <h4 className={`text-2xl font-black italic tracking-tighter mb-4 ${activeSignal?.action === 'Long' ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -250,15 +259,10 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
                     </div>
                  </div>
 
-                 <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-center mb-4">
-                    <span className="text-[9px] font-black text-emerald-400 uppercase block mb-1">Tamanho da Posição</span>
-                    <span className="text-md font-mono text-white font-black">{positionSize.toFixed(2)} QNT</span>
-                 </div>
-
                  <button 
                   onClick={handleExecuteTrade}
                   disabled={isExecuting}
-                  className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${activeSignal?.action === 'Long' ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-emerald-500/20' : 'bg-red-500 hover:bg-red-400 text-white shadow-red-500/20'}`}
+                  className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${activeSignal?.action === 'Long' ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-emerald-500/20' : 'bg-red-500 hover:bg-red-400 text-white shadow-red-500/20'}`}
                 >
                   {isExecuting ? 'PROCESSANDO...' : (
                     <>
@@ -270,14 +274,13 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
               </div>
             </div>
           ) : (
-            <div className="bg-slate-900/40 border-2 border-dashed border-slate-800 p-6 rounded-3xl flex flex-col items-center justify-center text-center flex-1">
+            <div className="bg-slate-900/40 border-2 border-dashed border-slate-800 p-6 rounded-3xl flex flex-col items-center justify-center text-center flex-1 h-full min-h-[300px]">
                <ShieldAlert className="w-8 h-8 text-slate-700 mb-2" />
                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Aguardando Confirmação</p>
             </div>
           )}
         </div>
       </div>
-
     </div>
   );
 }

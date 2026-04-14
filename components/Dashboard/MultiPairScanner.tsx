@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSignals } from '@/lib/SignalContext';
-import { Search, Star, PinOff, Flame } from 'lucide-react';
+import { Search, Star, PinOff, Target } from 'lucide-react';
 
 const getIndicatorColor = (state: number) => {
   if (state === 2) return 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]';
@@ -12,7 +12,7 @@ const getIndicatorColor = (state: number) => {
 };
 
 export default function MultiPairScanner({ onSelectPair, selectedPair }: { onSelectPair: (p: string) => void; selectedPair: string }) {
-  const { scannedSignals, isLoading } = useSignals();
+  const { scannedSignals, activeTrades, isLoading } = useSignals();
   const [searchTerm, setSearchTerm] = useState('');
   const [pinnedPairs, setPinnedPairs] = useState<string[]>([]);
 
@@ -34,7 +34,6 @@ export default function MultiPairScanner({ onSelectPair, selectedPair }: { onSel
     s.pair.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Ordenar: Pinned primeiro, depois por nota
   const sorted = [...filtered].sort((a, b) => {
     const aPin = pinnedPairs.includes(a.pair) ? 1 : 0;
     const bPin = pinnedPairs.includes(b.pair) ? 1 : 0;
@@ -65,6 +64,8 @@ export default function MultiPairScanner({ onSelectPair, selectedPair }: { onSel
         {sorted.map((pd) => {
           const isSelected = selectedPair === pd.pair;
           const isPinned = pinnedPairs.includes(pd.pair);
+          const hasActiveTrade = activeTrades.some(t => t.par === pd.pair);
+          
           const colorClass = pd.action === 'Long' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
                            : pd.action === 'Short' ? 'text-red-400 bg-red-500/10 border-red-500/20' 
                            : 'text-slate-400 bg-slate-800/50 border-slate-700/50';
@@ -81,6 +82,12 @@ export default function MultiPairScanner({ onSelectPair, selectedPair }: { onSel
                 <div className="flex items-center gap-2">
                    <span className="font-bold text-slate-200 text-[14px]">{pd.pair}</span>
                    {isPinned && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />}
+                   {hasActiveTrade && (
+                     <div className="flex items-center gap-1">
+                        <Target className="w-3 h-3 text-brand-500 animate-pulse" />
+                        <span className="text-[7px] font-black text-brand-400 uppercase tracking-tighter">Live</span>
+                     </div>
+                   )}
                 </div>
                 
                 <div className="flex items-center gap-1 mt-0.5">
