@@ -26,7 +26,7 @@ async function fetchBybit<T>(path: string, params: Record<string, string> = {}):
     }
     return res.json();
   } catch (error) {
-    logger.error('Erro ao fazer fetch para Bybit:', error);
+    logger.error({ err: error }, 'Erro ao fazer fetch para Bybit');
     throw error;
   }
 }

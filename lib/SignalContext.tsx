@@ -286,6 +286,8 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (window as any).signalContextActions = { executeTrade, closeTrade };
     syncActiveTrades();
+  }, [executeTrade, closeTrade, syncActiveTrades]);
+
   // ── Análise principal (30s) ──────────────────────────────
   const runAnalysis = useCallback(async () => {
     if (isLoading) return;
