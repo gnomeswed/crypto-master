@@ -24,6 +24,41 @@ async function fetchBinanceKline(pair: string, interval: string, limit: string) 
 }
 
 // ═══════════════════════════════════════════════════════════
+// Bybit Fallback (Para moedas que não existem na Binance)
+// ═══════════════════════════════════════════════════════════
+async function fetchBybitKline(pair: string, interval: string, limit: string) {
+  const mapInterval = (iv: string) => iv === "15" ? "15" : iv === "60" ? "60" : iv === "240" ? "240" : iv === "D" ? "D" : iv;
+  const bybitIv = mapInterval(interval);
+  const targetUrl = `/api/bybit?path=/v5/market/kline&symbol=${pair}USDT&interval=${bybitIv}&limit=${limit}`;
+  
+  if (klineCache[targetUrl] && Date.now() - klineCache[targetUrl].ts < HTF_TTL) {
+    return klineCache[targetUrl].data;
+  }
+
+  const res = await fetch(targetUrl, { cache: "no-store", keepalive: true });
+  if (!res.ok) throw new Error("Falha no Proxy Bybit");
+  const d = await res.json();
+  if (d.retCode !== 0 || !d.result?.list) throw new Error("Moeda recusada na Bybit (" + pair + ")");
+  
+  // A Bybit manda do mais recente pro mais antigo [0 ... 1000]. Tem que reverter pra igualar à Binance.
+  const list = d.result.list;
+  const mapped = list.reverse().map((c: any) => [
+     parseFloat(c[0]), parseFloat(c[1]), parseFloat(c[2]), parseFloat(c[3]), parseFloat(c[4]), parseFloat(c[5])
+  ]);
+  
+  klineCache[targetUrl] = { data: mapped, ts: Date.now() };
+  return mapped;
+}
+
+async function fetchKlinesWithFallback(pair: string, interval: string, limit: string) {
+  try {
+    return await fetchBinanceKline(pair, interval, limit);
+  } catch (err) {
+    return await fetchBybitKline(pair, interval, limit);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // HELPER: RSI
 // ═══════════════════════════════════════════════════════════
 function calculateRSI(candles: Candle[], length = 14): number[] {
@@ -269,9 +304,9 @@ export async function analyzePair(pair: string, interval = "5"): Promise<SMCAnal
   const gpIv     = currentIv === "5" ? "60" : "240";
 
   const [curRaw, parRaw, gpRaw] = await Promise.all([
-    fetchBinanceKline(pair, currentIv, "1000"),
-    fetchBinanceKline(pair, parentIv, "1000"),
-    fetchBinanceKline(pair, gpIv, "1000")
+    fetchKlinesWithFallback(pair, currentIv, "1000"),
+    fetchKlinesWithFallback(pair, parentIv, "1000"),
+    fetchKlinesWithFallback(pair, gpIv, "1000")
   ]);
 
   if (!curRaw || curRaw.length < 100) throw new Error("Sem dados");
