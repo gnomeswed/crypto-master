@@ -141,10 +141,37 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [scannedSignals, syncActiveTrades]);
 
-  useEffect(() => {
-    (window as any).signalContextActions = { executeTrade };
+  const closeTrade = useCallback(async (id: string, result: 'GREEN' | 'LOSS') => {
+    const trade = loadSignals().find(t => t.id === id);
+    if (!trade) return;
+
+    // Calcula lucro final no momento do fechamento manual
+    const priceInfo = scannedSignals.find(p => p.pair === trade.par);
+    let profit = 0;
+    if (priceInfo && trade.capitalSimulado && trade.alavancagem) {
+      const currentPrice = parseFloat(priceInfo.lastPrice);
+      const isLong = trade.direcao === 'LONG';
+      const movePcnt = Math.abs(currentPrice - trade.precoEntrada) / trade.precoEntrada;
+      const isActuallyGreen = isLong ? currentPrice > trade.precoEntrada : currentPrice < trade.precoEntrada;
+      
+      profit = isActuallyGreen 
+        ? trade.capitalSimulado * movePcnt * trade.alavancagem 
+        : -trade.capitalSimulado * movePcnt * trade.alavancagem;
+    }
+
+    updateSignalStatus(id, result);
+    if (id.length > 20) {
+      await updateSignalResult(id, result, profit);
+    }
     syncActiveTrades();
-  }, [executeTrade, syncActiveTrades]);
+    alert(`Posição encerrada com sucesso! Resultado: ${result}`);
+  }, [scannedSignals, syncActiveTrades]);
+
+  // Expõe ações para componentes externos
+  useEffect(() => {
+    (window as any).signalContextActions = { executeTrade, closeTrade };
+    syncActiveTrades();
+  }, [executeTrade, syncActiveTrades, closeTrade]);
 
   const runAnalysis = useCallback(async () => {
     if (isLoading) return;

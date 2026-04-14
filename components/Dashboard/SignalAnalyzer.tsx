@@ -226,7 +226,15 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
               </div>
 
               <div className="mt-auto space-y-2">
-                 <button className="w-full py-4 bg-slate-100 hover:bg-white text-slate-900 font-black text-[11px] uppercase tracking-widest rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                 <button 
+                  onClick={async () => {
+                    const { closeTrade } = (window as any).signalContextActions || {};
+                    if (closeTrade) {
+                      await closeTrade(currentTrade.id, pnlUsdt >= 0 ? 'GREEN' : 'LOSS');
+                    }
+                  }}
+                  className="w-full py-4 bg-slate-100 hover:bg-white text-slate-900 font-black text-[11px] uppercase tracking-widest rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
                     <CheckCircle2 className="w-4 h-4" />
                     Fechar c/ Lucro Real
                  </button>
