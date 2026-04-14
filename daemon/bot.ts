@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
+import * as http from 'http';
 
 // Tenta carregar .env.local primeiro, depois .env
 if (fs.existsSync('.env.local')) {
@@ -7,6 +8,15 @@ if (fs.existsSync('.env.local')) {
 } else {
   dotenv.config();
 }
+
+// ── SERVIDOR WEB FANTASMA (KEEP-ALIVE PARA RENDER) ──────────
+const PORT = process.env.PORT || 3001;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('NEXTTRADE_DAEMON_ALIVE');
+}).listen(PORT, () => {
+  console.log(`📡 Servidor Keep-Alive ouvindo na porta ${PORT}`);
+});
 
 console.log("🚀 Iniciando NEXTTRADE DAEMON (Modo Server-Side 24/7)...");
 
