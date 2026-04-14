@@ -30,7 +30,10 @@ export default function HistoryView() {
         targetTP: s.target_tp,
         rr: s.rr,
         resultado: s.resultado,
-        checklist: s.checklist
+        checklist: s.checklist,
+        capitalSimulado: s.capital_simulado,
+        alavancagem: s.alavancagem,
+        lucroFinalUsdt: s.lucro_final_usdt
       }));
       setSignals(mapped);
       setDataSource('CLOUD');
@@ -69,7 +72,7 @@ export default function HistoryView() {
               {dataSource} STORAGE
             </span>
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Sinais de elite (Nota 10) registrados automaticamente pelo algoritmo.</p>
+          <p className="text-sm text-slate-500 mt-1">Sinais de elite (Nota 8+) registrados automaticamente pelo algoritmo e operações manuais.</p>
         </div>
         <button onClick={loadData} className="saas-card px-4 py-2 text-xs font-bold hover:bg-slate-800 transition-all">
           Atualizar Lista
@@ -85,7 +88,7 @@ export default function HistoryView() {
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ativo</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Lado</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entrada</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">RR</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Lucro (ROI)</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Resultado</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ações</th>
               </tr>
@@ -102,6 +105,7 @@ export default function HistoryView() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="font-bold text-white">{signal.par}</span>
+                    {signal.alavancagem && <span className="text-[8px] block text-brand-500 font-bold">{signal.alavancagem}x LEV</span>}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase ${signal.direcao === 'LONG' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-500'}`}>
@@ -111,12 +115,20 @@ export default function HistoryView() {
                   <td className="px-6 py-4 text-xs font-mono text-slate-300">
                     ${parseFloat(signal.precoEntrada?.toString() || '0').toFixed(4)}
                   </td>
-                  <td className="px-6 py-4 text-xs font-bold text-brand-400">1:{signal.rr}</td>
+                  <td className="px-6 py-4">
+                    {signal.resultado === 'ABERTO' ? (
+                       <span className="text-[10px] font-bold text-slate-600 animate-pulse tracking-widest uppercase">Aguardando...</span>
+                    ) : (
+                      <span className={`text-xs font-mono font-black ${signal.resultado === 'GREEN' ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {signal.resultado === 'GREEN' ? '+' : ''}{signal.lucroFinalUsdt ? `$${signal.lucroFinalUsdt.toFixed(2)}` : (signal.resultado === 'GREEN' ? 'Win' : 'Loss')}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase ${
-                      signal.resultado === 'GREEN' ? 'bg-emerald-500 text-white' : 
-                      signal.resultado === 'LOSS' ? 'bg-red-500 text-white' : 
-                      'bg-slate-800 text-slate-400'
+                      signal.resultado === 'GREEN' ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 
+                      signal.resultado === 'LOSS' ? 'bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 
+                      'bg-slate-800 text-slate-400 animate-pulse'
                     }`}>
                       {signal.resultado}
                     </span>
