@@ -101,11 +101,12 @@ function SignalCard({ signal, onSelect }: { signal: any; onSelect: (pair: string
 }
 
 // ─── Row histórico estilo extrato ─────────────────────────
-function HistExtrato({ signal, onGoToChart }: { signal: Signal; onGoToChart: (par: string) => void }) {
+function HistExtrato({ signal, onGoToChart, activePrices }: { signal: Signal; onGoToChart: (par: string) => void; activePrices: any; }) {
   const [expanded, setExpanded] = useState(false);
   const isWin  = signal.resultado === "GREEN";
   const isLoss = signal.resultado === "LOSS";
   const isOpen = signal.resultado === "ABERTO";
+  const currentPrice = activePrices ? (activePrices[signal.par] || signal.precoEntrada) : signal.precoEntrada;
 
   return (
     <>
@@ -238,6 +239,11 @@ function HistExtrato({ signal, onGoToChart }: { signal: Signal; onGoToChart: (pa
             <div className="col-span-3 mt-1 p-3 bg-slate-900/50 rounded-xl border border-blue-500/20">
               <p className="text-[8px] font-bold text-blue-500/60 uppercase mb-1">Relatório SMC</p>
               <p className="text-[9px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">{signal.relatorio}</p>
+              {isOpen && (
+                <div className="mt-2 text-[10px] text-brand-400 font-bold bg-slate-950 px-3 py-1.5 rounded-lg inline-block w-fit border border-brand-500/20">
+                  📌 Preço Atual MTM: ${currentPrice.toFixed(4)}
+                </div>
+              )}
             </div>
           )}
           <div className="col-span-3 flex gap-2 mt-1">
@@ -258,7 +264,7 @@ function HistExtrato({ signal, onGoToChart }: { signal: Signal; onGoToChart: (pa
 //  METRIC CARDS
 // ═══════════════════════════════════════════════════════════
 export default function MetricCards() {
-  const { scannedSignals, setSelectedPair, setActiveView } = useSignals();
+  const { scannedSignals, setSelectedPair, setActiveView, activePrices } = useSignals();
   const [histSignals, setHistSignals] = useState<Signal[]>([]);
   const [activeDrawer, setActiveDrawer] = useState<"assertividade" | "master" | "elite" | "radar" | null>(null);
 
@@ -421,7 +427,7 @@ export default function MetricCards() {
             {[...histSignals]
               .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
               .map((s, i) => (
-                <HistExtrato key={s.id || i} signal={s} onGoToChart={handleGoToChart} />
+                <HistExtrato key={s.id || i} signal={s} onGoToChart={handleGoToChart} activePrices={activePrices} />
               ))}
           </div>
         )}

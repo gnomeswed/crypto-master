@@ -280,7 +280,14 @@ function TradeCard({
         </span>
         {/* Relatório personalizado gerado pelo engine */}
         {trade.relatorio ? (
-          <p className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">{trade.relatorio}</p>
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">{trade.relatorio}</p>
+            {trade.resultado === "ABERTO" && (
+              <div className="mt-1 text-[10px] text-brand-400 font-bold bg-slate-900/50 px-3 py-1.5 rounded-lg inline-block w-fit border border-brand-500/20">
+                📌 Preço Atual MTM: ${(currentPrice > 0 ? currentPrice : trade.precoEntrada).toFixed(4)}
+              </div>
+            )}
+          </div>
         ) : trade.reasons && trade.reasons.length > 0 ? (
           <div className="space-y-1">
             {trade.reasons.slice(0, 4).map((r: string, i: number) => (

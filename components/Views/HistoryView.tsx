@@ -62,7 +62,7 @@ function ResultBadge({ resultado }: { resultado: string }) {
 }
 
 // ─── Row expandida (detalhes completos) ───────────────────
-function ExpandedRow({ s }: { s: Signal }) {
+function ExpandedRow({ s, currentPrice }: { s: Signal; currentPrice?: number }) {
   const isWin  = s.resultado === "GREEN";
   const isLoss = s.resultado === "LOSS";
 
@@ -176,6 +176,11 @@ function ExpandedRow({ s }: { s: Signal }) {
               <div className="bg-slate-900/40 rounded-xl p-3 border border-blue-500/20">
                 <p className="text-[8px] font-bold text-blue-400 uppercase tracking-widest mb-1">Relatório do Agente</p>
                 <p className="text-[9px] text-slate-400 leading-relaxed whitespace-pre-wrap font-mono">{s.relatorio}</p>
+                {s.resultado === "ABERTO" && currentPrice && (
+                  <div className="mt-2 text-[10px] text-brand-400 font-bold bg-slate-950 px-3 py-1.5 rounded-lg inline-block w-fit border border-brand-500/20">
+                    📌 Preço Atual MTM: ${currentPrice.toFixed(4)}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -196,7 +201,7 @@ export default function HistoryView() {
   const [expandedId, setExpandedId]   = useState<string | null>(null);
   const [filterResult, setFilter]     = useState<"ALL" | "GREEN" | "LOSS" | "ABERTO">("ALL");
   const [filterDir, setFilterDir]     = useState<"ALL" | "LONG" | "SHORT">("ALL");
-  const { setSelectedPair, setActiveView } = useSignals();
+  const { setSelectedPair, setActiveView, activePrices } = useSignals();
 
   const loadData = async () => {
     setIsLoading(true);
@@ -367,6 +372,7 @@ export default function HistoryView() {
                 const isWin      = s.resultado === "GREEN";
                 const isLoss     = s.resultado === "LOSS";
                 const isExpanded = expandedId === s.id;
+                const currentPrice = activePrices ? (activePrices[s.par] || s.precoEntrada) : s.precoEntrada;
                 const dur        = s.dataHoraFim ? calcDuration(s.dataHora, s.dataHoraFim) : null;
 
                 return (
@@ -492,7 +498,7 @@ export default function HistoryView() {
                     </tr>
 
                     {/* Linha expandida com detalhes */}
-                    {isExpanded && <ExpandedRow key={`${s.id}-exp`} s={s} />}
+                    {isExpanded && <ExpandedRow key={`${s.id}-exp`} s={s} currentPrice={currentPrice} />}
                   </>
                 );
               })}

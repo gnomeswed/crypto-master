@@ -24,13 +24,10 @@ function buildFechamentoMotivo(
   sl: number,
   direcao: "LONG" | "SHORT",
 ): string {
-  const fmt = (n: number) =>
-    n < 1 ? `$${n.toFixed(6)}` : n < 100 ? `$${n.toFixed(4)}` : `$${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
   if (tipo === "GREEN") {
-    return `✅ Take Profit atingido em ${fmt(currentPrice)} (TP: ${fmt(tp)}) — Encerrado com lucro.`;
+    return `🎉 Vitória! A operação correu perfeitamente e atingiu nosso alvo de lucro (Take Profit) em ${currentPrice.toFixed(4)}. Dinheiro no bolso!`;
   }
-  return `❌ Stop Loss ativado em ${fmt(currentPrice)} (SL: ${fmt(sl)}) — Posição encerrada.`;
+  return `⚠️ Proteção ativada! O mercado não acompanhou nossa projeção, e a operação foi encerrada automaticamente na barreira de segurança (Stop Loss) em ${currentPrice.toFixed(4)} para proteger nosso capital.`;
 }
 
 // ─── Relatório de abertura ─────────────────────────────────
@@ -264,7 +261,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
         : -movePct * trade.alavancagem * 100;
     }
 
-    const fechamentoMotivo = `🖐️ Encerramento manual em $${currentPrice.toFixed(4)} — Resultado: ${result}.`;
+    const fechamentoMotivo = "🖐️ A operação foi encerrada manualmente pelo usuário em $" + currentPrice.toFixed(4) + ".";
     const relatorioFinal   = appendFechamentoRelatorio(trade.relatorio ?? "", fechamentoMotivo);
 
     const updated = loadSignals().map(s =>
