@@ -312,10 +312,26 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
         const tickerData = await res.json();
         if (!Array.isArray(tickerData)) continue;
 
-        const allPairs = tickerData
+        const activePairs = new Set(loadSignals().filter(s => s.resultado === "ABERTO").map(s => s.par + "USDT"));
+
+        const filteredAndSortedPairs = tickerData
           .filter((t: any) => t.symbol.endsWith("USDT") && parseFloat(t.lastPrice) > 0 && parseFloat(t.quoteVolume) > 10000000)
-          .sort((a: any, b: any) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-          .slice(0, 25);
+          .sort((a: any, b: any) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume));
+
+        const allPairsMap = new Map();
+        
+        // Coloca o Top 25
+        filteredAndSortedPairs.slice(0, 25).forEach((t: any) => allPairsMap.set(t.symbol, t));
+        
+        // Garante que todas as ativas (mesmo fora do top 25) entrem no loop
+        activePairs.forEach(sym => {
+          if (!allPairsMap.has(sym)) {
+            const foundTicker = tickerData.find((t: any) => t.symbol === sym);
+            if (foundTicker) allPairsMap.set(sym, foundTicker);
+          }
+        });
+
+        const allPairs = Array.from(allPairsMap.values());
 
         const results = await Promise.all(
           allPairs.map(async (ticker: any) => {
