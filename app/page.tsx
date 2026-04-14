@@ -6,17 +6,19 @@ import {
   History, 
   Settings, 
   LineChart, 
-  Bell 
+  Bell,
+  Briefcase 
 } from 'lucide-react';
 
 import DashboardView from '@/components/Views/DashboardView';
 import HistoryView from '@/components/Views/HistoryView';
 import SettingsView from '@/components/Views/SettingsView';
+import PortfolioView from '@/components/Views/PortfolioView';
 import { useSignals } from '@/lib/SignalContext';
 
 export default function SaaSLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
-  const { activeView, setActiveView } = useSignals();
+  const { activeView, setActiveView, activeTrades } = useSignals();
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-900 text-slate-200">
@@ -37,6 +39,21 @@ export default function SaaSLayout() {
           >
             <LayoutDashboard className="w-4 h-4" />
             Painel Live
+          </button>
+
+          <button 
+            onClick={() => setActiveView('PORTFOLIO')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all text-sm font-medium ${activeView === 'PORTFOLIO' ? 'bg-brand-500/10 text-brand-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+          >
+            <div className="flex items-center gap-3">
+              <Briefcase className="w-4 h-4" />
+              Meu Portfólio
+            </div>
+            {activeTrades.length > 0 && (
+              <span className="bg-brand-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-[0_0_8px_rgba(var(--brand-500),0.3)]">
+                {activeTrades.length}
+              </span>
+            )}
           </button>
           
           <button 
@@ -68,7 +85,8 @@ export default function SaaSLayout() {
       <main className="flex-1 flex flex-col min-w-0 relative h-full">
         <header className="h-16 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-md flex items-center justify-between px-8 z-20">
           <h2 className="text-sm font-semibold text-slate-300">
-            {activeView === 'DASHBOARD' && 'Rainel Live de Liquidez'}
+            {activeView === 'DASHBOARD' && 'Painel Live de Liquidez'}
+            {activeView === 'PORTFOLIO' && 'Monitoramento de Portfólio Ativo'}
             {activeView === 'HISTORY' && 'Oportunidades de Elite'}
             {activeView === 'SETTINGS' && 'Ajustes de Risco'}
           </h2>
@@ -120,6 +138,7 @@ export default function SaaSLayout() {
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-600/10 blur-[120px] rounded-full pointer-events-none"></div>
           <div className="relative z-10 max-w-7xl mx-auto h-full">
             {activeView === 'DASHBOARD' && <DashboardView />}
+            {activeView === 'PORTFOLIO' && <PortfolioView />}
             {activeView === 'HISTORY' && <HistoryView />}
             {activeView === 'SETTINGS' && <SettingsView />}
           </div>

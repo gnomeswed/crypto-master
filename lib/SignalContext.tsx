@@ -7,7 +7,7 @@ import { saveSignalToCloud, updateSignalResult } from './supabase';
 import { WifiOff } from 'lucide-react';
 import { Signal } from './types';
 
-export type DashboardViewType = 'DASHBOARD' | 'HISTORY' | 'SETTINGS';
+export type DashboardViewType = 'DASHBOARD' | 'PORTFOLIO' | 'HISTORY' | 'SETTINGS';
 
 interface ScannedSignal {
   pair: string;
