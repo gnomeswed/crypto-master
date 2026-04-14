@@ -3,9 +3,8 @@ import * as crypto from "crypto";
 
 export const runtime = "nodejs";
 
-// Cache em memória no servidor — evita re-fetch de dados idênticos em < 5s
 const serverCache = new Map<string, { data: any; ts: number }>();
-const CACHE_TTL = 5_000; // 5 segundos
+const CACHE_TTL = 5_000;
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,19 +21,16 @@ export async function GET(request: NextRequest) {
     const queryString = queryParams.toString();
     const cacheKey    = `${path}?${queryString}`;
 
-    // ── Serve do cache se ainda válido ──────────────────────
     const cached = serverCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
       return NextResponse.json(cached.data, {
         status: 200,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "X-Cache": "HIT",
-        },
+        headers: { "Access-Control-Allow-Origin": "*", "X-Cache": "HIT" },
       });
     }
 
-    const targetUrl = `https://api.bybit.com${path}?${queryString}`;
+    // USAR BYTICK PARA NÃO SER BLOQUEADO PELA CLOUDFLARE NA VERCEL
+    const targetUrl = `https://api.bytick.com${path}?${queryString}`;
 
     const headers: Record<string, string> = {
       "Content-Type":  "application/json",
@@ -58,17 +54,19 @@ export async function GET(request: NextRequest) {
     }
 
     const response = await fetch(targetUrl, { method: "GET", headers, cache: "no-store" });
-    const data     = await response.json();
+    const textData = await response.text();
+    let data;
+    try {
+      data = JSON.parse(textData);
+    } catch (e) {
+      return NextResponse.json({ error: "Cloudflare Block (HTML)", response: textData.substring(0,200) }, { status: 502 });
+    }
 
-    // ── Guarda em cache ─────────────────────────────────────
     if (response.ok) serverCache.set(cacheKey, { data, ts: Date.now() });
 
     return NextResponse.json(data, {
       status: response.status,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "X-Cache": "MISS",
-      },
+      headers: { "Access-Control-Allow-Origin": "*", "X-Cache": "MISS" },
     });
   } catch (error: any) {
     return NextResponse.json({ error: "Falha no Proxy", message: error.message }, { status: 500 });
