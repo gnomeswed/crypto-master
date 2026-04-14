@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import { loadSignals, deleteSignal } from "@/lib/storage";
@@ -7,7 +7,7 @@ import { Signal } from "@/lib/types";
 import {
   Cloud, HardDrive, Trash2, ExternalLink, RefreshCw,
   TrendingUp, TrendingDown, Minus, Clock, Calendar,
-  CheckCircle2, XCircle, Activity, Filter, ChevronDown, ChevronUp
+  CheckCircle2, XCircle, Activity, Filter, ChevronDown, ChevronUp, Bot, Smartphone
 } from "lucide-react";
 import { useSignals } from "@/lib/SignalContext";
 
@@ -396,8 +396,15 @@ export default function HistoryView() {
                       {/* Ativo */}
                       <td className="px-4 py-3.5">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-white">{s.par}<span className="text-slate-600">/USDT</span></span>
-                          {s.timeframe && <span className="text-[8px] text-slate-600 font-mono">TF: {s.timeframe}</span>}
+                          <span className="text-xs font-bold text-white flex items-center gap-1">
+                            {s.par}<span className="text-slate-600 mr-1">/USDT</span>
+                            {s.gatilho === "TELEGRAM" ? (
+                              <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1 rounded flex items-center gap-1"><Smartphone className="w-2.5 h-2.5" /> LAB</span>
+                            ) : (
+                              <span className="text-[8px] bg-brand-500/20 text-brand-400 px-1 rounded flex items-center gap-1"><Bot className="w-2.5 h-2.5" /> AUTO</span>
+                            )}
+                          </span>
+                          {s.timeframe && <span className="text-[8px] text-slate-600 font-mono mt-1">TF: {s.timeframe}</span>}
                         </div>
                       </td>
 

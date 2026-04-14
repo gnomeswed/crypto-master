@@ -10,24 +10,27 @@ import {
   Briefcase,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  ClipboardCheck
 } from 'lucide-react';
 
 import DashboardView from '@/components/Views/DashboardView';
 import HistoryView from '@/components/Views/HistoryView';
 import SettingsView from '@/components/Views/SettingsView';
 import PortfolioView from '@/components/Views/PortfolioView';
+import ValidatorView from '@/components/Views/ValidatorView';
 import { useSignals } from '@/lib/SignalContext';
 
 // ─── Itens de navegação ──────────────────────────────────
 const NAV_ITEMS = [
   { id: 'DASHBOARD', label: 'Painel',    icon: LayoutDashboard, mobileLabel: 'Live' },
+  { id: 'VALIDATOR', label: 'Validador', icon: ClipboardCheck,  mobileLabel: 'Sinais' },
   { id: 'PORTFOLIO', label: 'Portfólio', icon: Briefcase,        mobileLabel: 'Trades' },
   { id: 'HISTORY',   label: 'Oportunidades', icon: History,      mobileLabel: 'Elite' },
   { id: 'SETTINGS',  label: 'Banca',     icon: Settings,         mobileLabel: 'Banca' },
 ] as const;
 
-type ViewType = 'DASHBOARD' | 'PORTFOLIO' | 'HISTORY' | 'SETTINGS';
+type ViewType = 'DASHBOARD' | 'VALIDATOR' | 'PORTFOLIO' | 'HISTORY' | 'SETTINGS';
 
 export default function SaaSLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -42,6 +45,7 @@ export default function SaaSLayout() {
 
   const pageTitle = {
     DASHBOARD: 'Painel Live de Liquidez',
+    VALIDATOR: 'Laboratório & Validador de Sinais',
     PORTFOLIO: 'Monitoramento de Portfólio',
     HISTORY:   'Oportunidades de Elite',
     SETTINGS:  'Ajustes de Risco',
@@ -229,6 +233,7 @@ export default function SaaSLayout() {
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-600/10 blur-[120px] rounded-full pointer-events-none" />
           <div className="relative z-10 max-w-7xl mx-auto">
             {activeView === 'DASHBOARD' && <DashboardView />}
+            {activeView === 'VALIDATOR' && <ValidatorView />}
             {activeView === 'PORTFOLIO' && <PortfolioView />}
             {activeView === 'HISTORY'   && <HistoryView />}
             {activeView === 'SETTINGS'  && <SettingsView />}

@@ -67,7 +67,7 @@ function appendFechamentoRelatorio(existing: string, motivo: string): string {
 }
 
 // ─── Types ────────────────────────────────────────────────
-export type DashboardViewType = "DASHBOARD" | "PORTFOLIO" | "HISTORY" | "SETTINGS";
+export type DashboardViewType = "DASHBOARD" | "VALIDATOR" | "PORTFOLIO" | "HISTORY" | "SETTINGS";
 
 interface ScannedSignal {
   pair: string; score: number; action: "Long" | "Short" | "Aguardar" | "Evitar";
@@ -83,6 +83,7 @@ interface SignalContextType {
   activeView: DashboardViewType; setActiveView: (v: DashboardViewType) => void;
   countdown: number; errorMessage: string | null;
   activePrices: Record<string, number>;
+  addManualSignalToLaboratory: (signal: Partial<Signal>) => Promise<void>;
 }
 
 const SignalContext = createContext<SignalContextType | undefined>(undefined);
@@ -272,6 +273,23 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     alert(`Posição encerrada! Resultado: ${result}`);
   }, [scannedSignals, syncActiveTrades]);
 
+  // ── Inserir Trade Manual (Validator) ─────────────────────
+  const addManualSignalToLaboratory = useCallback(async (manualSignal: Partial<Signal>) => {
+    const id = `manlab-${Date.now()}`;
+    const newTrade: any = {
+      ...manualSignal,
+      id,
+      dataHora: new Date().toISOString(),
+      resultado: "ABERTO",
+      gatilho: "TELEGRAM",
+    };
+
+    addSignal(newTrade);
+    await saveSignalToCloud(newTrade);
+    syncActiveTrades();
+    alert(`Sinal ${manualSignal.par} adicionado ao Laboratório!`);
+  }, [syncActiveTrades]);
+
   useEffect(() => {
     (window as any).signalContextActions = { executeTrade, closeTrade };
     syncActiveTrades();
@@ -385,8 +403,8 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(() => ({
     scannedSignals, activeTrades, isLoading, lastUpdate, refresh,
     selectedPair, setSelectedPair, activeView, setActiveView,
-    countdown, errorMessage, activePrices,
-  }), [scannedSignals, activeTrades, isLoading, lastUpdate, selectedPair, activeView, countdown, errorMessage, activePrices]);
+    countdown, errorMessage, activePrices, addManualSignalToLaboratory
+  }), [scannedSignals, activeTrades, isLoading, lastUpdate, selectedPair, activeView, countdown, errorMessage, activePrices, addManualSignalToLaboratory]);
 
   return (
     <SignalContext.Provider value={contextValue}>
