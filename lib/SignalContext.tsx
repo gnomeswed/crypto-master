@@ -40,6 +40,7 @@ interface SignalContextType {
   setActiveView: (v: DashboardViewType) => void;
   countdown: number;
   errorMessage: string | null;
+  activePrices: Record<string, number>; // Novo: Preços em tempo real para trades ativos
 }
 
 const SignalContext = createContext<SignalContextType | undefined>(undefined);
@@ -61,6 +62,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [activeView, setActiveView] = useState<DashboardViewType>('DASHBOARD');
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activePrices, setActivePrices] = useState<Record<string, number>>({});
 
   // Sincroniza trades ativos do storage local
   const syncActiveTrades = useCallback(() => {
@@ -81,8 +83,8 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
       const priceInfo = currentPrices.find(p => p.pair === trade.par);
       if (!priceInfo) continue;
 
-      const currentPrice = parseFloat(priceInfo.lastPrice);
-      const isLong = trade.direcao === 'LONG';
+        const currentPrice = activePrices[trade.par] || parseFloat(priceInfo.lastPrice);
+        const isLong = trade.direcao === 'LONG';
       const tp = trade.targetTP || trade.precoEntrada * 1.01;
       const sl = trade.precoStop;
 
@@ -262,6 +264,37 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, [isLoading, monitorTrades, syncActiveTrades]);
 
+  // Loop de Preços Rápidos (3 Segundos) para trades ativos
+  useEffect(() => {
+    if (activeTrades.length === 0) return;
+
+    const fastUpdate = async () => {
+      const symbols = activeTrades.map(t => `${t.par}USDT`).join(',');
+      const targetUrl = `https://api.bybit.com/v5/market/tickers?category=linear&symbols=${symbols}&t=${Date.now()}`;
+      
+      for (const getProxyUrl of PROXY_LIST) {
+        try {
+          const res = await fetch(getProxyUrl(targetUrl), { cache: 'no-store' });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (!data.result?.list) continue;
+
+          const newPrices: Record<string, number> = { ...activePrices };
+          data.result.list.forEach((t: any) => {
+            const pairName = t.symbol.replace('USDT', '');
+            newPrices[pairName] = parseFloat(t.lastPrice);
+          });
+          setActivePrices(newPrices);
+          break;
+        } catch (e) { continue; }
+      }
+    };
+
+    const interval = setInterval(fastUpdate, 3000);
+    fastUpdate();
+    return () => clearInterval(interval);
+  }, [activeTrades, activePrices]);
+
   useEffect(() => {
     const timer = setInterval(() => setCountdown((prev) => (prev > 0 ? prev - 1 : 0)), 1000);
     return () => clearInterval(timer);
@@ -276,7 +309,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
       scannedSignals, activeTrades, isLoading, lastUpdate, refresh,
       selectedPair, setSelectedPair,
       activeView, setActiveView,
-      countdown, errorMessage
+      countdown, errorMessage, activePrices
     }}>
       {errorMessage && (
         <div className="fixed bottom-6 left-6 z-[100] bg-orange-500/90 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-md border border-orange-400/50">

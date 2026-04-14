@@ -17,14 +17,14 @@ import {
 } from 'lucide-react';
 
 export default function PortfolioView() {
-  const { activeTrades, scannedSignals, setSelectedPair, setActiveView } = useSignals();
+  const { activeTrades, scannedSignals, setSelectedPair, setActiveView, activePrices } = useSignals();
 
   // Calcular métricas totais
   const totalPnL = activeTrades.reduce((acc, trade) => {
     const priceInfo = scannedSignals.find(p => p.pair === trade.par);
     if (!priceInfo || !trade.precoEntrada) return acc;
     
-    const currentPrice = parseFloat(priceInfo.lastPrice);
+    const currentPrice = activePrices[trade.par] || parseFloat(priceInfo.lastPrice);
     const isLong = trade.direcao === 'LONG';
     const diff = isLong ? (currentPrice - trade.precoEntrada) : (trade.precoEntrada - currentPrice);
     const movePcnt = diff / trade.precoEntrada;
@@ -91,7 +91,7 @@ export default function PortfolioView() {
           </div>
         ) : activeTrades.map((trade) => {
           const priceInfo = scannedSignals.find(p => p.pair === trade.par);
-          const currentPrice = parseFloat(priceInfo?.lastPrice || '0');
+          const currentPrice = activePrices[trade.par] || parseFloat(priceInfo?.lastPrice || '0');
           
           let pnlUsdt = 0;
           let pnlPcnt = 0;
@@ -142,8 +142,15 @@ export default function PortfolioView() {
                            </div>
                            <div className="w-px h-6 bg-slate-800"></div>
                            <div className="flex flex-col">
-                              <span className="text-[8px] font-bold text-slate-600 uppercase">Mark Price</span>
-                              <span className="text-sm font-mono text-brand-400 font-bold">${currentPrice > 0 ? currentPrice.toFixed(4) : '---'}</span>
+                              <span className="text-[8px] font-bold text-slate-600 uppercase flex items-center gap-1">
+                                Mark Price
+                                {activePrices[trade.par] && (
+                                  <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]"></span>
+                                )}
+                              </span>
+                              <span className="text-sm font-mono text-brand-400 font-bold tabular-nums">
+                                ${currentPrice > 0 ? currentPrice.toFixed(4) : '---'}
+                              </span>
                            </div>
                         </div>
                      </div>
