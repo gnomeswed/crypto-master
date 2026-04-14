@@ -109,7 +109,6 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
 
   // ── Sync inicial da nuvem → localStorage ────────────────
   const syncFromCloud = useCallback(async () => {
-    setIsSyncing(true);
     try {
       const cloudSignals = await fetchSignalsFromCloud();
       if (cloudSignals.length > 0) {
@@ -128,7 +127,11 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [syncActiveTrades]);
 
-  useEffect(() => { syncFromCloud(); }, []);
+  useEffect(() => { 
+    syncFromCloud(); 
+    const id = setInterval(syncFromCloud, 15000); // Polling 15s para capturar trades do Daemon Nuvem
+    return () => clearInterval(id);
+  }, [syncFromCloud]);
 
   // ── Monitor de trades — detecta TP/SL em tempo real ─────
   const monitorTrades = useCallback(async (currentPrices: ScannedSignal[]) => {
@@ -366,9 +369,12 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                     reasons:         analysis.reasons,
                     relatorio,
                   };
-                  addSignal(autoSignal);
-                  saveSignalToCloud(autoSignal);
-                  syncActiveTrades();
+                  
+                  // AVISO: Injeção autônoma desativada no Frontend. 
+                  // O script daemon/bot.ts agora é responsável por adicionar na nuvem 24/7.
+                  // addSignal(autoSignal);
+                  // saveSignalToCloud(autoSignal);
+                  // syncActiveTrades();
                 }
               }
 

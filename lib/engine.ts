@@ -29,7 +29,8 @@ async function fetchBinanceKline(pair: string, interval: string, limit: string) 
 async function fetchBybitKline(pair: string, interval: string, limit: string) {
   const mapInterval = (iv: string) => iv === "15" ? "15" : iv === "60" ? "60" : iv === "240" ? "240" : iv === "D" ? "D" : iv;
   const bybitIv = mapInterval(interval);
-  const targetUrl = `/api/bybit?path=/v5/market/kline&symbol=${pair}USDT&interval=${bybitIv}&limit=${limit}`;
+  const host = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+  const targetUrl = `${host}/api/bybit?path=/v5/market/kline&symbol=${pair}USDT&interval=${bybitIv}&limit=${limit}`;
   
   if (klineCache[targetUrl] && Date.now() - klineCache[targetUrl].ts < HTF_TTL) {
     return klineCache[targetUrl].data;
