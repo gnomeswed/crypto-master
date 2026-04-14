@@ -215,7 +215,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     if (!signal?.setup) { alert("Aguardando análise de preço..."); return; }
 
     const entryPrice = parseFloat(signal.lastPrice);
-    const relatorio  = `Operação manual de ${signal.action === "Long" ? "compra (LONG)" : "venda (SHORT)"} em ${pair}USDT. Score SMC: ${signal.score}/16. Viés H4: ${(signal as any).htfBias || "NEUTRO"}. Entrada em $${entryPrice.toFixed(4)}, TP $${signal.setup.tp.toFixed(4)}, SL $${signal.setup.sl.toFixed(4)} (RR ${signal.setup.rr}:1). Capital: $${capital.toFixed(2)} com ${leverage}x.`;
+    const relatorio = generateRelatorio(signal, pair, entryPrice);
 
     const newTrade: any = {
       id:              `man-${Date.now()}`,

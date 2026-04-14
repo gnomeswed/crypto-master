@@ -280,7 +280,7 @@ function TradeCard({
         </span>
         {/* Relatório personalizado gerado pelo engine */}
         {trade.relatorio ? (
-          <p className="text-[10px] text-slate-300 leading-relaxed">{trade.relatorio}</p>
+          <p className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">{trade.relatorio}</p>
         ) : trade.reasons && trade.reasons.length > 0 ? (
           <div className="space-y-1">
             {trade.reasons.slice(0, 4).map((r: string, i: number) => (
