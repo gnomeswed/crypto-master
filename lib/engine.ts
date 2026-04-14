@@ -1,4 +1,4 @@
-﻿import { SMCAnalysis, Candle, HTFBias, StructureType } from "./types";
+import { SMCAnalysis, Candle, HTFBias, StructureType } from "./types";
 
 // ═══════════════════════════════════════════════════════════
 // CACHE GLOBAL — Evita re-fetch desnecessário
@@ -10,47 +10,21 @@ const KLINE_TTL  = 15_000; // 15s — velas em tempo real
 const HTF_TTL    = 5 * 60_000; // 5min — bias H4
 
 // ═══════════════════════════════════════════════════════════
-// FETCH — Usa rota interna Next.js como primeiro try (rápido)
-//         e proxies públicos como fallback de emergência
+// FETCH — Binance Direto (Anti-Bloqueios, Super Rápido)
 // ═══════════════════════════════════════════════════════════
-const FALLBACK_PROXIES = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
+async function fetchBinanceKline(pair: string, interval: string, limit: string) {
+  const mapInterval = (iv: string) => iv === "15" ? "15m" : iv === "60" ? "1h" : iv === "240" ? "4h" : iv === "D" ? "1d" : iv + "m";
+  const binanceIv = mapInterval(interval);
+  const targetUrl = `https://api.binance.com/api/v3/klines?symbol=${pair}USDT&interval=${binanceIv}&limit=${limit}`;
+  const cacheKey = targetUrl;
+  const cached = klineCache[cacheKey];
+  if (cached && Date.now() - cached.ts < KLINE_TTL) return cached.data;
 
-async function fetchBybit(path: string, params: Record<string, string>): Promise<any> {
-  const qp = new URLSearchParams({ ...params, category: "linear" }).toString();
-
-  // ── OPÇÃO 1: Rota interna /api/bybit (servidor-a-servidor, sem CORS) ──
-  if (typeof window !== "undefined") {
-    const internalUrl = `/api/bybit?path=${encodeURIComponent(path)}&${qp}`;
-    try {
-      const cacheKey = internalUrl;
-      const cached = klineCache[cacheKey];
-      if (cached && Date.now() - cached.ts < KLINE_TTL) return cached.data;
-
-      const res = await fetch(internalUrl, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.result?.list) {
-          klineCache[cacheKey] = { data, ts: Date.now() };
-          return data;
-        }
-      }
-    } catch {/* tenta proxy */}
-  }
-
-  // ── OPÇÃO 2: Proxies externos (fallback) ──────────────────────────────
-  const targetUrl = `https://api.bybit.com${path}?${qp}`;
-  for (const getProxy of FALLBACK_PROXIES) {
-    try {
-      const res = await fetch(getProxy(targetUrl), { cache: "no-store" });
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.result?.list) return data;
-    } catch { continue; }
-  }
-  throw new Error("Todos os túneis falharam.");
+  const res = await fetch(targetUrl, { cache: "no-store" }); 
+  if (!res.ok) throw new Error("Falha na API da Binance");
+  const data = await res.json();
+  klineCache[cacheKey] = { data, ts: Date.now() };
+  return data;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -168,11 +142,11 @@ async function detectHTFBias(pair: string): Promise<HTFBias> {
   const cached = htfBiasCache[pair];
   if (cached && Date.now() - cached.ts < HTF_TTL) return cached.data;
   try {
-    const data = await fetchBybit("/v5/market/kline", { symbol: `${pair}USDT`, interval: "240", limit: "20" });
-    if (!data.result?.list || data.result.list.length < 6) return "NEUTRAL";
-    const candles: Candle[] = data.result.list.map((c: any) => ({
+    const data = await fetchBinanceKline(pair, "240", "20");
+    if (!data || data.length < 6) return "NEUTRAL";
+    const candles: Candle[] = data.map((c: any) => ({
       timestamp: +c[0], open: +c[1], high: +c[2], low: +c[3], close: +c[4], volume: +c[5]
-    })).reverse();
+    }));
     const r = candles.slice(-6);
     let hh = 0, hl = 0, lh = 0, ll = 0;
     for (let i = 1; i < r.length; i++) {
@@ -344,13 +318,11 @@ function calculateSMC(candles: Candle[], pair: string, interval: string, htfBias
 // EXPORT PRINCIPAL
 // ═══════════════════════════════════════════════════════════
 export async function analyzePair(pair: string, interval = "15"): Promise<SMCAnalysis> {
-  const data = await fetchBybit("/v5/market/kline", {
-    symbol: `${pair}USDT`, interval, limit: "100"
-  });
-  if (!data.result?.list?.length) throw new Error("Sem dados");
-  const candles: Candle[] = data.result.list.map((c: any) => ({
+  const data = await fetchBinanceKline(pair, interval, "100");
+  if (!data || data.length === 0) throw new Error("Sem dados");
+  const candles: Candle[] = data.map((c: any) => ({
     timestamp: +c[0], open: +c[1], high: +c[2], low: +c[3], close: +c[4], volume: +c[5]
-  })).reverse();
+  }));
   const htfBias = await detectHTFBias(pair).catch(() => "NEUTRAL" as HTFBias);
   return calculateSMC(candles, pair, interval, htfBias);
 }

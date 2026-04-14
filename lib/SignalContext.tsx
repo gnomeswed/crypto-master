@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { analyzePair } from "./engine";
@@ -101,10 +101,7 @@ interface SignalContextType {
 
 const SignalContext = createContext<SignalContextType | undefined>(undefined);
 const REFRESH_INTERVAL = 30;
-const PROXY_LIST = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
+const PROXY_LIST = [(url: string) => url]; // Binance Direto
 
 export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [scannedSignals, setScannedSignals] = useState<ScannedSignal[]>([]);
@@ -298,17 +295,17 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (activeTrades.length === 0) return;
     const fast = async () => {
-      const symbols   = activeTrades.map(t => `${t.par}USDT`).join(",");
-      const targetUrl = `https://api.bybit.com/v5/market/tickers?category=linear&symbols=${symbols}&t=${Date.now()}`;
+      const symbols   = activeTrades.map(t => `"%22${t.par}USDT"%22`).join(",");
+      const targetUrl = `https://api.binance.com/api/v3/ticker/price?symbols=[${symbols.replace(/"/g,'')}]`;
       for (const getProxy of PROXY_LIST) {
         try {
           const res = await fetch(getProxy(targetUrl), { cache: "no-store" });
           if (!res.ok) continue;
           const data = await res.json();
-          if (!data.result?.list) continue;
+          if (!data || data.length === 0) continue;
           const prices: Record<string, number> = { ...activePrices };
-          data.result.list.forEach((t: any) => {
-            prices[t.symbol.replace("USDT", "")] = parseFloat(t.lastPrice);
+          data.forEach((t: any) => {
+            prices[t.symbol.replace("USDT", "")] = parseFloat(t.price);
           });
           setActivePrices(prices);
           break;
@@ -326,7 +323,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setErrorMessage(null);
 
-    const targetUrl = `https://api.bybit.com/v5/market/tickers?category=linear&t=${Date.now()}`;
+    const targetUrl = `https://api.binance.com/api/v3/ticker/24hr`;
     let success = false;
 
     for (const getProxy of PROXY_LIST) {
@@ -335,11 +332,11 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch(getProxy(targetUrl), { cache: "no-store" });
         if (!res.ok) continue;
         const tickerData = await res.json();
-        if (!tickerData.result?.list) continue;
+        if (!Array.isArray(tickerData)) continue;
 
-        const allPairs = tickerData.result.list
-          .filter((t: any) => t.symbol.endsWith("USDT"))
-          .sort((a: any, b: any) => parseFloat(b.turnover24h) - parseFloat(a.turnover24h))
+        const allPairs = tickerData
+          .filter((t: any) => t.symbol.endsWith("USDT") && parseFloat(t.lastPrice) > 0 && parseFloat(t.quoteVolume) > 10000000)
+          .sort((a: any, b: any) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
           .slice(0, 25);
 
         const results = await Promise.all(
@@ -388,13 +385,13 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                 timeframe:     analysis.timeframe,
                 statusText:    analysis.checklist?.sweepConfirmado ? "Setup Confirmado" : "Aguardando Sweep",
                 checklist:     analysis.checklist,
-                volume24h:     parseFloat(ticker.turnover24h),
+                volume24h:     parseFloat(ticker.quoteVolume),
                 reasons:       analysis.reasons,
                 setup:         analysis.setup,
-                priceChange24h: ticker.price24hPcnt,
+                priceChange24h: (parseFloat(ticker.priceChangePercent) / 100).toFixed(4),
                 lastPrice:     ticker.lastPrice,
-                high24h:       ticker.highPrice24h,
-                low24h:        ticker.lowPrice24h,
+                high24h:       ticker.highPrice,
+                low24h:        ticker.lowPrice,
                 bias:          analysis.bias,
                 session:       analysis.session,
                 indicators:    analysis.indicators,
