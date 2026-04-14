@@ -76,7 +76,14 @@ export default function ValidatorView() {
         slPct
       });
     } catch (err) {
-      alert("Erro ao validar com a Engine. Verifique o par na Binance.");
+      // Se der erro na Binance, permitimos injeção manual como fallback
+      const slDist = Math.abs(parsed.entry - parsed.sl);
+      const slPct = (slDist / parsed.entry) * 100;
+      setEngineResult({
+        analysis: { score: 0, action: 'Evitar', reasons: ["Moeda (Low-Cap) não listada na Binance. A Engine foi desativada, mas você pode usar o laboratório às cegas."] },
+        currentPrice: parsed.entry,
+        slPct
+      });
     } finally {
       setIsAnalyzing(false);
     }
