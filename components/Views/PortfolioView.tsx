@@ -95,12 +95,22 @@ export default function PortfolioView() {
           
           let pnlUsdt = 0;
           let pnlPcnt = 0;
+          let distToTP = 0;
+          let distToSL = 0;
+
           if (trade.precoEntrada && currentPrice > 0) {
             const isLong = trade.direcao === 'LONG';
             const diff = isLong ? (currentPrice - trade.precoEntrada) : (trade.precoEntrada - currentPrice);
             const movePcnt = diff / trade.precoEntrada;
             pnlPcnt = movePcnt * (trade.alavancagem || 1) * 100;
             pnlUsdt = (trade.capitalSimulado || 0) * movePcnt * (trade.alavancagem || 1);
+
+            if (trade.targetTP) {
+              distToTP = ((Math.abs(currentPrice - trade.targetTP) / currentPrice) * 100);
+            }
+            if (trade.precoStop) {
+              distToSL = ((Math.abs(currentPrice - trade.precoStop) / currentPrice) * 100);
+            }
           }
 
           return (
@@ -108,74 +118,95 @@ export default function PortfolioView() {
                {/* Background Glow */}
                <div className={`absolute -top-10 -right-10 w-40 h-40 blur-[80px] rounded-full transition-all duration-1000 ${pnlUsdt >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/5'}`}></div>
                
-               <div className="flex items-center justify-between relative z-10">
+               <div className="flex items-start justify-between relative z-10">
                   <div className="flex items-center gap-4">
-                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-xl ${trade.direcao === 'LONG' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-red-500/20 text-red-500 border border-red-500/40'}`}>
+                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-2xl ${trade.direcao === 'LONG' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-red-500/20 text-red-500 border border-red-500/40'}`}>
                         {trade.par.slice(0, 1)}
                      </div>
                      <div>
-                        <h4 className="text-xl font-black text-white tracking-tighter">{trade.par} / USDT</h4>
-                        <div className="flex items-center gap-2">
-                           <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${trade.direcao === 'LONG' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                           <h4 className="text-2xl font-black text-white tracking-tighter">{trade.par}</h4>
+                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${trade.direcao === 'LONG' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                               {trade.direcao} {trade.alavancagem}X
                            </span>
-                           <span className="text-[10px] text-slate-600 font-mono italic">Entrada: ${trade.precoEntrada ? trade.precoEntrada.toFixed(4) : '---'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                           <div className="flex flex-col">
+                              <span className="text-[8px] font-bold text-slate-600 uppercase">Entrada</span>
+                              <span className="text-sm font-mono text-slate-300 font-bold">${trade.precoEntrada ? trade.precoEntrada.toFixed(4) : '---'}</span>
+                           </div>
+                           <div className="w-px h-6 bg-slate-800"></div>
+                           <div className="flex flex-col">
+                              <span className="text-[8px] font-bold text-slate-600 uppercase">Mark Price</span>
+                              <span className="text-sm font-mono text-brand-400 font-bold">${currentPrice > 0 ? currentPrice.toFixed(4) : '---'}</span>
+                           </div>
                         </div>
                      </div>
                   </div>
                   <div className="text-right">
-                     <div className={`text-2xl font-black font-mono tracking-tighter ${pnlUsdt >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                     <div className={`text-3xl font-black font-mono tracking-tighter ${pnlUsdt >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {pnlUsdt >= 0 ? '+' : ''}{pnlPcnt.toFixed(2)}%
                      </div>
-                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{pnlUsdt >= 0 ? 'Lucro' : 'Loss'} Ativo</span>
+                     <div className="flex items-center justify-end gap-1.5 mt-1">
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${pnlUsdt >= 0 ? 'text-emerald-500/60' : 'text-red-500/60'}`}>
+                          {pnlUsdt >= 0 ? 'Lucro' : 'Loss'}: ${Math.abs(pnlUsdt).toFixed(2)}
+                        </span>
+                     </div>
+                  </div>
+               </div>
+
+               {/* GRID DE ALVOS (TP / SL / RR) */}
+               <div className="grid grid-cols-3 gap-3 relative z-10">
+                  <div className="bg-slate-950/40 p-3 rounded-2xl border border-slate-800/60 flex flex-col items-center justify-center text-center">
+                     <span className="text-[8px] font-bold text-emerald-500/60 uppercase mb-1">Take Profit</span>
+                     <span className="text-xs font-mono text-emerald-400 font-black">${trade.targetTP ? trade.targetTP.toFixed(4) : '---'}</span>
+                     <span className="text-[8px] text-slate-500 font-bold mt-1">+{distToTP.toFixed(2)}%</span>
+                  </div>
+                  <div className="bg-slate-950/40 p-3 rounded-2xl border border-slate-800/60 flex flex-col items-center justify-center text-center">
+                     <span className="text-[8px] font-bold text-red-500/60 uppercase mb-1">Stop Loss</span>
+                     <span className="text-xs font-mono text-red-400 font-black">${trade.precoStop ? trade.precoStop.toFixed(4) : '---'}</span>
+                     <span className="text-[8px] text-slate-500 font-bold mt-1">-{distToSL.toFixed(2)}%</span>
+                  </div>
+                  <div className="bg-slate-950/40 p-3 rounded-2xl border border-slate-800/60 flex flex-col items-center justify-center text-center">
+                     <span className="text-[8px] font-bold text-blue-500/60 uppercase mb-1">Relação RR</span>
+                     <span className="text-xs font-mono text-blue-400 font-black">1:{trade.rr || '3.0'}</span>
+                     <span className="text-[8px] text-slate-500 font-bold mt-1">SMC Setup</span>
                   </div>
                </div>
 
                {/* RELATÓRIO DO ESPECIALISTA */}
-               <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 relative z-10">
+               <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 relative z-10 flex-1">
                   <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-2">
                      <ShieldCheck className="w-3 h-3 text-blue-500" /> Relatório Tático do Agente
                   </span>
                   <div className="space-y-1.5">
                     {trade.checklist && Object.entries(trade.checklist).filter(([_, v]) => v).slice(0, 3).map(([key, _]) => (
                       <div key={key} className="flex items-center gap-2 text-[10px] text-slate-400">
-                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />
-                        <span>Confluência {key.replace(/([A-Z])/g, ' $1').toLowerCase()} detectada e válida.</span>
+                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+                        <span>Confluência {key.replace(/([A-Z])/g, ' $1').toLowerCase()} validada.</span>
                       </div>
                     ))}
-                    <p className="text-[10px] text-slate-500 italic mt-2 leading-relaxed opacity-60">
-                      Operação baseada em fluxo institucional e quebra de estrutura (SMC) identificada no timeframe M15.
+                    <p className="text-[9px] text-slate-500 italic mt-2 leading-relaxed opacity-60">
+                      Setup institucional identificado no tempo gráfico M15 com foco em liquidez externa.
                     </p>
-                  </div>
-               </div>
-
-               {/* PROGRESSO ATÉ O ALVO */}
-               <div className="space-y-2 relative z-10">
-                  <div className="flex justify-between items-center text-[10px] font-bold uppercase text-slate-600 tracking-widest">
-                     <span>Próximo Alvo (TP)</span>
-                     <span>{currentPrice > 0 && trade.targetTP ? trade.targetTP.toFixed(4) : '---'}</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-950 rounded-full border border-slate-800 overflow-hidden relative">
-                     <div 
-                        className={`h-full transition-all duration-1000 ${pnlUsdt >= 0 ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 opacity-30'}`}
-                        style={{ width: `${Math.min(100, Math.max(5, (pnlPcnt / 5) * 100))}%` }}
-                     />
                   </div>
                </div>
 
                <div className="flex items-center gap-3 relative z-10">
                   <button 
                     onClick={() => openTradeAnalysis(trade.par)}
-                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
                   >
-                     <ExternalLink className="w-3 h-3" /> Gerenciar Gráfico
+                     <ExternalLink className="w-3 h-3" /> Gráfico
                   </button>
                   <button 
                     onClick={async () => {
-                      const { closeTrade } = (window as any).signalContextActions || {};
-                      if (closeTrade) await closeTrade(trade.id, pnlUsdt >= 0 ? 'GREEN' : 'LOSS');
+                      if (confirm('Deseja realmente encerrar esta posição?')) {
+                        const { closeTrade } = (window as any).signalContextActions || {};
+                        if (closeTrade) await closeTrade(trade.id, pnlUsdt >= 0 ? 'GREEN' : 'LOSS');
+                      }
                     }}
-                    className="px-6 py-3 bg-slate-100 hover:bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95"
+                    className="px-6 py-3 bg-slate-100 hover:bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg"
                   >
                      Fechar
                   </button>
