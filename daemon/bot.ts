@@ -99,9 +99,27 @@ async function runDaemonLoop() {
   console.log(`\n[${new Date().toLocaleTimeString()}] Iniciando Varredura...`);
 
   try {
-    const res = await fetch("https://api.binance.com/api/v3/ticker/24hr", { cache: "no-store", keepalive: true });
-    if (!res.ok) throw new Error("Binance Blocked / Failed");
-    const tickerData = await res.json();
+  try {
+    let tickerData = [];
+    try {
+      const res = await fetch("https://api.binance.com/api/v3/ticker/24hr", { cache: "no-store", keepalive: true });
+      if (!res.ok) throw new Error("Binance Blocked");
+      tickerData = await res.json();
+      console.log("✅ Dados obtidos via Binance");
+    } catch (err) {
+      console.log("⚠️ Binance bloqueada. Alternando para redundância Bybit...");
+      // Bybit Public Ticker (Spot)
+      const resBybit = await fetch("https://api.bybit.com/v5/market/tickers?category=spot", { cache: "no-store" });
+      if (!resBybit.ok) throw new Error("Ambas as corretoras falharam");
+      const d = await resBybit.json();
+      // Normaliza o formato Bybit para o formato Binance
+      tickerData = d.result.list.map((t: any) => ({
+        symbol: t.symbol,
+        lastPrice: t.lastPrice,
+        quoteVolume: t.quoteVolume || t.turnover
+      }));
+      console.log(`✅ Dados obtidos via Bybit (${tickerData.length} pares)`);
+    }
 
     // 1. Obter Trades atualmente abertos na nuvem
     const allSignals = await fetchSignalsFromCloud();
