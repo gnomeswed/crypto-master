@@ -1,10 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { analyzePair } from './engine';
 import { addSignal, loadSignals } from './storage';
-import { supabase, saveSignalToCloud } from './supabase';
-import { AlertCircle } from 'lucide-react';
+import { saveSignalToCloud } from './supabase';
+import { AlertCircle, WifiOff } from 'lucide-react';
 
 export type DashboardViewType = 'DASHBOARD' | 'HISTORY' | 'SETTINGS';
 
@@ -43,6 +43,10 @@ const SignalContext = createContext<SignalContextType | undefined>(undefined);
 
 const REFRESH_INTERVAL = 30;
 
+// TÚNEL NEUTRO PARA BYPASS DE WAF (CORS)
+const CORS_PROXY = "https://proxy.cors.sh/"; // Backup: "https://corsproxy.io/?"
+const BYBIT_API = "https://api.bybit.com/v5/market/tickers?category=linear";
+
 export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [scannedSignals, setScannedSignals] = useState<ScannedSignal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,18 +61,14 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const tickerRes = await fetch(`/api/bybit?path=/v5/market/tickers&category=linear&_t=${Date.now()}`);
+      // Tentativa 1: Direta via Proxy CORS (Usa o IP do usuário, que não é bloqueado)
+      const targetUrl = `${BYBIT_API}&t=${Date.now()}`;
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
       
-      if (!tickerRes.ok) {
-        const errText = await tickerRes.text();
-        throw new Error(`Erro na API (${tickerRes.status}): ${errText.substring(0, 50)}`);
-      }
-
-      const tickerData = await tickerRes.json();
+      if (!res.ok) throw new Error(`Conexão instável (Status ${res.status})`);
+      const tickerData = await res.json();
       
-      if (!tickerData.result?.list) {
-        throw new Error("Bybit retornou lista vazia ou erro no formato");
-      }
+      if (!tickerData.result?.list) throw new Error("Dados de mercado indisponíveis no momento");
 
       const allPairs = tickerData.result.list
         .filter((t: any) => t.symbol.endsWith('USDT'))
@@ -125,16 +125,13 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
         })
       );
 
-      const filteredResults = (results.filter(r => r !== null) as ScannedSignal[])
-        .sort((a, b) => b.score - a.score);
-
-      setScannedSignals(filteredResults);
+      setScannedSignals((results.filter(r => r !== null) as ScannedSignal[]).sort((a, b) => b.score - a.score));
       setLastUpdate(new Date());
       setCountdown(REFRESH_INTERVAL);
       
     } catch (error: any) {
-      console.error('Erro no Hunter:', error);
-      setErrorMessage(error.message);
+      console.error('Erro no Scanner:', error);
+      setErrorMessage("Erro de Conexão com a Bybit. Tentando Reestabelecer...");
     } finally {
       setIsLoading(false);
     }
@@ -155,9 +152,9 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
       countdown, errorMessage
     }}>
       {errorMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-red-500/90 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl backdrop-blur-md border border-red-400/50 animate-bounce">
-          <AlertCircle className="w-5 h-5" />
-          <span className="text-sm font-bold uppercase tracking-wider">Erro Crucial: {errorMessage}</span>
+        <div className="fixed bottom-6 left-6 z-[100] bg-orange-500/90 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-md border border-orange-400/50">
+          <WifiOff className="w-4 h-4 animate-pulse" />
+          <span className="text-xs font-bold uppercase">{errorMessage}</span>
         </div>
       )}
       {children}
