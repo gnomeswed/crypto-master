@@ -139,6 +139,11 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
               <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${activeSignal?.action === 'Long' ? 'bg-emerald-500 text-white' : activeSignal?.action === 'Short' ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
                 {activeSignal?.action || 'BUSCANDO'}
               </span>
+              {(activeSignal?.timeframe === 'M5' || activeSignal?.timeframe === 'M15') && (
+                <div className="flex items-center gap-1 bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 rounded-full animate-pulse">
+                  <span className="text-[8px] font-black uppercase tracking-widest leading-none">Alvo Curto</span>
+                </div>
+              )}
               {currentTrade && (
                 <span className="bg-brand-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded animate-pulse">POSIÇÃO ATIVA</span>
               )}

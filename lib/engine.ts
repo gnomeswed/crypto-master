@@ -52,14 +52,14 @@ export async function analyzePair(pair: string, interval: string = '15'): Promis
       volume: parseFloat(c[5])
     })).reverse();
 
-    return calculateSMC(candles, pair);
+    return calculateSMC(candles, pair, interval);
   } catch (error) {
     console.error(`Erro analisando ${pair}:`, error);
     throw error;
   }
 }
 
-function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
+function calculateSMC(candles: Candle[], pair: string, interval: string): SMCAnalysis {
   const last = candles[candles.length - 1];
   const prev = candles[candles.length - 2];
   
@@ -139,6 +139,7 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
     checklist,
     setup,
     bias,
+    timeframe: interval as any,
     session: { name: "Nova York", color: "#3b82f6" },
     indicators: {
       rsi: isBullish ? 65 : 35,

@@ -129,6 +129,11 @@ export default function PortfolioView() {
                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${trade.direcao === 'LONG' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                               {trade.direcao} {trade.alavancagem}X
                            </span>
+                           {trade.timeframe && (
+                             <span className="text-[9px] font-bold text-slate-500 border border-slate-800 px-1.5 py-0.5 rounded leading-none">
+                               {trade.timeframe}
+                             </span>
+                           )}
                         </div>
                         <div className="flex items-center gap-3">
                            <div className="flex flex-col">

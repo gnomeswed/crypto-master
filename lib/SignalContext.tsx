@@ -13,6 +13,7 @@ interface ScannedSignal {
   pair: string;
   score: number;
   action: 'Long' | 'Short' | 'Aguardar' | 'Evitar';
+  timeframe: string;
   statusText: string;
   checklist: any;
   volume24h: number;
@@ -208,6 +209,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                   const autoSignal: any = {
                     dataHora: new Date().toISOString(),
                     par: pairName,
+                    timeframe: analysis.timeframe, // Salva o horizonte temporal
                     pontuacao: analysis.score,
                     direcao: (analysis.action as string).toUpperCase(),
                     precoEntrada: parseFloat(ticker.lastPrice),
@@ -227,6 +229,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                 pair: pairName,
                 score: analysis.score,
                 action: analysis.action as any,
+                timeframe: analysis.timeframe, // Passa para a UI de scaneamento
                 statusText: analysis.checklist?.sweepConfirmado ? 'Setup Confirmado' : 'Aguardando Sweep',
                 checklist: analysis.checklist,
                 volume24h: parseFloat(ticker.turnover24h),

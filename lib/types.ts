@@ -44,6 +44,7 @@ export interface SMCAnalysis {
     rr: number;
   };
   bias: number;
+  timeframe: Timeframe;
   session: {
     name: string;
     color: string;
