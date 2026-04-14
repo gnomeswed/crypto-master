@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // USAR BYTICK PARA NÃO SER BLOQUEADO PELA CLOUDFLARE NA VERCEL
     const targetUrl = `https://api.bytick.com${path}?${queryString}`;
 
     const headers: Record<string, string> = {
@@ -37,20 +36,25 @@ export async function GET(request: NextRequest) {
       "User-Agent":    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0",
     };
 
-    const apiKey    = process.env.BYBIT_API_KEY;
-    const apiSecret = process.env.BYBIT_API_SECRET;
-    if (apiKey && apiSecret && apiKey.trim() && apiSecret.trim()) {
-      try {
-        const timestamp  = Date.now().toString();
-        const recvWindow = "5000";
-        const sig = crypto.createHmac("sha256", apiSecret)
-          .update(timestamp + apiKey + recvWindow + queryString)
-          .digest("hex");
-        headers["X-BAPI-API-KEY"]      = apiKey;
-        headers["X-BAPI-SIGN"]         = sig;
-        headers["X-BAPI-TIMESTAMP"]    = timestamp;
-        headers["X-BAPI-RECV-WINDOW"]  = recvWindow;
-      } catch {}
+    // Apenas assinar rotas privadas (ex: trade/position/order).
+    // Rotas públicas de mercado (/v5/market/) NÃO devem ser assinadas
+    // para evitar bloqueios de IP Restrito (API Key vinculada a IP da máquina local).
+    if (!path.startsWith("/v5/market/")) {
+      const apiKey    = process.env.BYBIT_API_KEY;
+      const apiSecret = process.env.BYBIT_API_SECRET;
+      if (apiKey && apiSecret && apiKey.trim() && apiSecret.trim()) {
+        try {
+          const timestamp  = Date.now().toString();
+          const recvWindow = "5000";
+          const sig = crypto.createHmac("sha256", apiSecret)
+            .update(timestamp + apiKey + recvWindow + queryString)
+            .digest("hex");
+          headers["X-BAPI-API-KEY"]      = apiKey;
+          headers["X-BAPI-SIGN"]         = sig;
+          headers["X-BAPI-TIMESTAMP"]    = timestamp;
+          headers["X-BAPI-RECV-WINDOW"]  = recvWindow;
+        } catch {}
+      }
     }
 
     const response = await fetch(targetUrl, { method: "GET", headers, cache: "no-store" });
@@ -59,7 +63,7 @@ export async function GET(request: NextRequest) {
     try {
       data = JSON.parse(textData);
     } catch (e) {
-      return NextResponse.json({ error: "Cloudflare Block (HTML)", response: textData.substring(0,200) }, { status: 502 });
+      return NextResponse.json({ error: "Cloudflare Block/Invalid JSON", response: textData.substring(0,200) }, { status: 502 });
     }
 
     if (response.ok) serverCache.set(cacheKey, { data, ts: Date.now() });
