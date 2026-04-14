@@ -16,7 +16,6 @@ import {
   ArrowDownCircle,
   ShieldAlert,
   Clock,
-  Compass,
   LayoutDashboard
 } from 'lucide-react';
 
@@ -67,7 +66,7 @@ function TradingViewChart({ symbol }: { symbol: string }) {
 const CHECKLIST_GLOSSARY: Record<string, { label: string; desc: string }> = {
   liquidezIdentificada: { label: 'Liquidez (EQL/PDH/PDL)', desc: 'Zonas onde grandes instituições deixam ordens pendentes. PDH é a máxima de ontem e PDL é a mínima.' },
   sweepConfirmado: { label: 'Sweep de Liquidez', desc: 'Acontece quando o preço "fura" a máxima ou mínima e volta rápido.' },
-  chochOuBos: { label: 'CHoCH ou BOS', desc: 'Quebra de Estrutura. Confirma que a tendência mudou e a reversão é real.' },
+  chochDetectado: { label: 'CHoCH ou BOS', desc: 'Quebra de Estrutura. Confirma que a tendência mudou e a reversão é real.' },
   orderBlockQualidade: { label: 'Order Block', desc: 'Uma zona de forte compra ou venda institucional para entrar no reteste.' },
   contextoMacroAlinhado: { label: 'Contexto Macro', desc: 'Verifica se a tendência maior concorda com a sua entrada.' },
   entradaNaReacao: { label: 'Entrada na Reação', desc: 'Esperamos o preço "bater e voltar" antes de clicar no botão.' },
@@ -79,14 +78,35 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
   const { scannedSignals } = useSignals();
   const [showGlossary, setShowGlossary] = useState(false);
   const [riskSettings, setRiskSettings] = useState({ banca: 1000, risco: 1 });
+  const [isExecuting, setIsExecuting] = useState(false);
+  
+  // Função para executar o trade simulado
+  const handleExecuteTrade = async () => {
+    const activeSingalLocal = scannedSignals.find(s => s.pair === externalPair);
+    if (!activeSingalLocal || !activeSingalLocal.setup) return;
+    setIsExecuting(true);
+    
+    try {
+      const { executeTrade } = (window as any).signalContextActions || {};
+      if (executeTrade) {
+        await executeTrade(externalPair, 10, 10); // R$10 com 10x Alavancagem
+        alert(`🚀 TRADE EXECUTADO: ${externalPair} | R$ 10.00 | 10x`);
+      } else {
+        alert('Aguarde o carregamento do motor...');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
   
   const activeSignal = scannedSignals.find(s => s.pair === externalPair);
   const checklist = activeSignal?.checklist || {};
-  const pontuacao = activeSignal?.score || 0;
   const reasons = activeSignal?.reasons || [];
   const setup = activeSignal?.setup;
   const session = (activeSignal as any)?.session;
-  const bias = activeSignal?.bias ?? 50; // Garantindo que não seja nulo
+  const bias = activeSignal?.bias ?? 50;
 
   useEffect(() => {
     const sBanca = localStorage.getItem('trade_banca') || '1000';
@@ -134,7 +154,6 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
           </div>
         </div>
 
-        {/* BARRA DE PROBABILIDADE (BIAS) CORRIGIDA */}
         <div className="flex flex-col items-center gap-2 bg-slate-950/40 p-3 px-6 rounded-2xl border border-slate-800/50 min-w-[200px]">
           <div className="flex justify-between w-full text-[9px] font-black uppercase tracking-widest text-slate-600">
             <span>SHORT</span>
@@ -156,7 +175,6 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
         
-        {/* COLUNA ESQUERDA: GRÁFICO E TESE */}
         <div className="lg:col-span-8 flex flex-col gap-4">
            {/* GRÁFICO REAL */}
            <div className="saas-card p-2 flex flex-col gap-2">
@@ -183,7 +201,6 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
           </div>
         </div>
 
-        {/* COLUNA DIREITA: CHECKLIST E SETUP */}
         <div className="lg:col-span-4 flex flex-col gap-4">
           <div className="saas-card p-4">
             <div className="flex items-center justify-between mb-3">
@@ -233,10 +250,23 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
                     </div>
                  </div>
 
-                 <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-center">
+                 <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-center mb-4">
                     <span className="text-[9px] font-black text-emerald-400 uppercase block mb-1">Tamanho da Posição</span>
                     <span className="text-md font-mono text-white font-black">{positionSize.toFixed(2)} QNT</span>
                  </div>
+
+                 <button 
+                  onClick={handleExecuteTrade}
+                  disabled={isExecuting}
+                  className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${activeSignal?.action === 'Long' ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-emerald-500/20' : 'bg-red-500 hover:bg-red-400 text-white shadow-red-500/20'}`}
+                >
+                  {isExecuting ? 'PROCESSANDO...' : (
+                    <>
+                      <Zap className="w-4 h-4 fill-current" />
+                      EXECUTAR TRADE SIMULADO (R$10)
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           ) : (

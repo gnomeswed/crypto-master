@@ -2,8 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { analyzePair } from './engine';
-import { addSignal, loadSignals } from './storage';
-import { saveSignalToCloud } from './supabase';
+import { addSignal, loadSignals, updateSignalStatus } from './storage';
+import { saveSignalToCloud, updateSignalResult } from './supabase';
 import { WifiOff } from 'lucide-react';
 
 export type DashboardViewType = 'DASHBOARD' | 'HISTORY' | 'SETTINGS';
@@ -43,7 +43,6 @@ const SignalContext = createContext<SignalContextType | undefined>(undefined);
 
 const REFRESH_INTERVAL = 30;
 
-// ESTRATÉGIA DE TUNELAMENTO MÚLTIPLO
 const PROXY_LIST = [
   (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
@@ -59,6 +58,76 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Monitora trades abertos contra o preço atual
+  const monitorTrades = useCallback((currentPrices: ScannedSignal[]) => {
+    const activeTrades = loadSignals().filter(s => s.resultado === 'ABERTO');
+    
+    activeTrades.forEach(async (trade) => {
+      const priceInfo = currentPrices.find(p => p.pair === trade.par);
+      if (!priceInfo) return;
+
+      const currentPrice = parseFloat(priceInfo.lastPrice);
+      const isLong = trade.direcao === 'LONG';
+      const tp = trade.targetTP || trade.precoEntrada * 1.01;
+      const sl = trade.precoStop;
+
+      let result: 'GREEN' | 'LOSS' | null = null;
+      if (isLong) {
+        if (currentPrice >= tp) result = 'GREEN';
+        if (currentPrice <= sl) result = 'LOSS';
+      } else {
+        if (currentPrice <= tp) result = 'GREEN';
+        if (currentPrice >= sl) result = 'LOSS';
+      }
+
+      if (result) {
+        // Calcula lucro simulado se houver capital
+        let profit = 0;
+        if (trade.capitalSimulado && trade.alavancagem) {
+          const movePcnt = Math.abs(currentPrice - trade.precoEntrada) / trade.precoEntrada;
+          profit = result === 'GREEN' 
+            ? trade.capitalSimulado * movePcnt * trade.alavancagem 
+            : -trade.capitalSimulado;
+        }
+
+        updateSignalStatus(trade.id, result);
+        if (trade.id.length > 20) { // Supabase ID
+           await updateSignalResult(trade.id, result, profit);
+        }
+      }
+    });
+  }, []);
+
+  const executeTrade = useCallback(async (pair: string, capital: number, leverage: number) => {
+    const signal = scannedSignals.find(s => s.pair === pair);
+    if (!signal || !signal.setup) return;
+
+    const newTrade: any = {
+      id: `man-${Date.now()}`,
+      dataHora: new Date().toISOString(),
+      par: pair,
+      pontuacao: signal.score,
+      direcao: (signal.action as string).toUpperCase(),
+      precoEntrada: signal.setup.entry,
+      precoStop: signal.setup.sl,
+      targetTP: signal.setup.tp,
+      rr: signal.setup.rr,
+      resultado: 'ABERTO',
+      checklist: signal.checklist,
+      capitalSimulado: capital,
+      alavancagem: leverage
+    };
+
+    addSignal(newTrade);
+    await saveSignalToCloud(newTrade);
+    refresh();
+  }, [scannedSignals]);
+
+  // Expõe ações para componentes externos
+  useEffect(() => {
+    (window as any).signalContextActions = { executeTrade };
+  }, [executeTrade]);
+
   const runAnalysis = useCallback(async () => {
     if (isLoading) return;
     setIsLoading(true);
@@ -69,7 +138,6 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
 
     for (const getProxyUrl of PROXY_LIST) {
       if (success) break;
-      
       try {
         const res = await fetch(getProxyUrl(targetUrl), { cache: 'no-store' });
         if (!res.ok) continue;
@@ -88,24 +156,25 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
             try {
               const analysis = await analyzePair(pairName);
               
-              if (analysis.score >= 10) {
+              // SALVAMENTO AUTOMÁTICO (Agora a partir de 8 pontos)
+              if (analysis.score >= 8) {
                 const existing = loadSignals();
                 const alreadyOpen = existing.find(s => s.par === pairName && s.resultado === 'ABERTO');
                 if (!alreadyOpen) {
-                  const newSignal: any = {
+                  const autoSignal: any = {
                     dataHora: new Date().toISOString(),
                     par: pairName,
                     pontuacao: analysis.score,
                     direcao: (analysis.action as string).toUpperCase(),
                     precoEntrada: analysis.setup?.entry,
                     precoStop: analysis.setup?.sl,
+                    targetTP: analysis.setup?.tp,
                     rr: analysis.setup?.rr,
                     resultado: 'ABERTO',
-                    checklist: analysis.checklist,
-                    targetTP: analysis.setup?.tp
+                    checklist: analysis.checklist
                   };
-                  addSignal(newSignal);
-                  saveSignalToCloud(newSignal);
+                  addSignal(autoSignal);
+                  saveSignalToCloud(autoSignal);
                 }
               }
 
@@ -126,28 +195,25 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                 session: analysis.session,
                 indicators: analysis.indicators
               };
-            } catch (err) {
-              return null;
-            }
+            } catch (err) { return null; }
           })
         );
 
-        setScannedSignals((results.filter(r => r !== null) as ScannedSignal[]).sort((a, b) => b.score - a.score));
+        const validResults = results.filter(r => r !== null) as ScannedSignal[];
+        setScannedSignals(validResults.sort((a, b) => b.score - a.score));
+        
+        // Dispara o monitoramento de trades abertos
+        monitorTrades(validResults);
+
         setLastUpdate(new Date());
         setCountdown(REFRESH_INTERVAL);
         success = true;
-        
-      } catch (error: any) {
-        console.warn('Falha em um dos túneis, tentando o próximo...', error.message);
-      }
+      } catch (error: any) { console.warn('Falha no túnel...', error.message); }
     }
 
-    if (!success) {
-      setErrorMessage("Todos os túneis falharam. Tentando Reconexão...");
-    }
-    
+    if (!success) setErrorMessage("Falha na conexão Bybit. Tentando Reconexão...");
     setIsLoading(false);
-  }, [isLoading]);
+  }, [isLoading, monitorTrades]);
 
   useEffect(() => {
     const timer = setInterval(() => setCountdown((prev) => (prev > 0 ? prev - 1 : 0)), 1000);
@@ -156,9 +222,11 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (countdown === 0) runAnalysis(); }, [countdown, runAnalysis]);
   useEffect(() => { runAnalysis(); }, []);
 
+  const refresh = useCallback(() => runAnalysis(), [runAnalysis]);
+
   return (
     <SignalContext.Provider value={{ 
-      scannedSignals, isLoading, lastUpdate, refresh: runAnalysis,
+      scannedSignals, isLoading, lastUpdate, refresh,
       selectedPair, setSelectedPair,
       activeView, setActiveView,
       countdown, errorMessage

@@ -33,11 +33,15 @@ export function updateSignal(id: string, updates: Partial<Signal>): Signal[] {
   return updated;
 }
 
+export function updateSignalStatus(id: string, result: 'GREEN' | 'LOSS' | 'BREAK_EVEN'): Signal[] {
+  return updateSignal(id, { resultado: result });
+}
+
 export function deleteSignal(id: string): Signal[] {
   if (typeof window === 'undefined') return [];
   const signals = loadSignals();
   const updated = signals.filter((s) => s.id !== id);
-  localStorage.setItem('smc_signals', JSON.stringify(updated));
+  saveSignals(updated);
   return updated;
 }
 

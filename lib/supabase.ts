@@ -18,10 +18,12 @@ export async function saveSignalToCloud(signal: any) {
       direcao: signal.direcao,
       preco_entrada: signal.precoEntrada,
       preco_stop: signal.precoStop,
-      target_tp: signal.targetTP,
+      target_tp: signal.targetTP || signal.setup?.tp,
       rr: signal.rr,
       resultado: signal.resultado,
-      checklist: signal.checklist
+      checklist: signal.checklist,
+      capital_simulado: signal.capitalSimulado,
+      alavancagem: signal.alavancagem
     }]);
   
   if (error) console.error('Erro Supabase:', error);
@@ -44,4 +46,18 @@ export async function fetchSignalsFromCloud() {
   } catch (err) {
     return [];
   }
+}
+
+export async function updateSignalResult(id: string, resultado: string, lucroFinal?: number) {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('signals')
+    .update({ 
+      resultado: resultado,
+      lucro_final_usdt: lucroFinal 
+    })
+    .eq('id', id);
+    
+  if (error) console.error('Erro ao atualizar resultado:', error);
+  return data;
 }

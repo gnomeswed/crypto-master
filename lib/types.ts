@@ -99,6 +99,10 @@ export interface Signal {
   rr: number;
   resultado: 'ABERTO' | 'GREEN' | 'LOSS' | 'BREAK_EVEN';
   checklist: SMCChecklist;
+  targetTP?: number;
+  capitalSimulado?: number;
+  alavancagem?: number;
+  lucroFinalUsdt?: number;
   tradePosition?: TradeCalculation;
 }
 
