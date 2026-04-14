@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export type Pair = 'BTC' | 'ETH' | 'SOL' | 'BNB' | 'ADA' | 'XRP' | 'MATIC' | 'AVAX' | 'DOGE' | 'LINK';
 export type Timeframe = 'M1' | 'M5' | 'M15' | 'H1' | 'H4' | 'D1';
 
@@ -135,3 +137,52 @@ export interface ChartDataPoint {
   acertividade: number;
   totalAcumulado: number;
 }
+
+// Zod Schemas for Validation
+export const PairSchema = z.enum(['BTC', 'ETH', 'SOL', 'BNB', 'ADA', 'XRP', 'MATIC', 'AVAX', 'DOGE', 'LINK']);
+
+export const TimeframeSchema = z.enum(['M1', 'M5', 'M15', 'H1', 'H4', 'D1']);
+
+export const SMCChecklistSchema = z.object({
+  liquidezIdentificada: z.boolean(),
+  sweepConfirmado: z.boolean(),
+  chochDetectado: z.boolean(),
+  orderBlockQualidade: z.boolean(),
+  contextoMacroAlinhado: z.boolean(),
+  volumeAlinhado: z.boolean(),
+  rrMinimoTresUm: z.boolean(),
+  entradaNaReacao: z.boolean(),
+  idmDetectado: z.boolean(),
+  retestadoOB: z.boolean(),
+});
+
+export const RiskConfigSchema = z.object({
+  capitalTotal: z.number().positive(),
+  riscoPorTradePercentual: z.number().min(0.1).max(10),
+});
+
+export const SignalSchema = z.object({
+  id: z.string().uuid(),
+  dataHora: z.string(),
+  dataHoraFim: z.string().optional(),
+  par: z.string(),
+  timeframe: TimeframeSchema.optional(),
+  pontuacao: z.number().min(0).max(16),
+  direcao: z.enum(['LONG', 'SHORT', 'BUSCANDO']),
+  gatilho: z.string().optional(),
+  precoEntrada: z.number().positive(),
+  precoStop: z.number().positive(),
+  rr: z.number().min(0),
+  resultado: z.enum(['ABERTO', 'GREEN', 'LOSS', 'BREAK_EVEN']),
+  checklist: SMCChecklistSchema,
+  targetTP: z.number().positive().optional(),
+  capitalSimulado: z.number().positive().optional(),
+  alavancagem: z.number().positive().optional(),
+  lucroFinalUsdt: z.number().optional(),
+  lucroFinalPct: z.number().optional(),
+  tradePosition: z.any().optional(), // Can define more specific if needed
+  reasons: z.array(z.string()).optional(),
+  htfBias: z.string().optional(),
+  relatorio: z.string().optional(),
+  fechamentoMotivo: z.string().optional(),
+});

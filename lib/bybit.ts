@@ -1,18 +1,34 @@
 import { MarketData, PAIR_TO_SYMBOL, Pair } from './types';
+import { checkRateLimit } from './rateLimiter';
+import logger from './logger';
 
 const BYBIT_BASE = 'https://api.bybit.com';
 
 async function fetchBybit<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const key = `bybit_${path}`;
+  if (!checkRateLimit(key)) {
+    logger.warn(`Rate limit exceeded for ${key}`);
+    throw new Error('Rate limit exceeded');
+  }
+
   const url = new URL(BYBIT_BASE + path);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), {
-    headers: { 'Content-Type': 'application/json' },
-    next: { revalidate: 0 },
-  });
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { 'Content-Type': 'application/json' },
+      next: { revalidate: 0 },
+    });
 
-  if (!res.ok) throw new Error(`Bybit API error: ${res.status}`);
-  return res.json();
+    if (!res.ok) {
+      logger.error(`Bybit API error: ${res.status} for ${url.toString()}`);
+      throw new Error(`Bybit API error: ${res.status}`);
+    }
+    return res.json();
+  } catch (error) {
+    logger.error('Erro ao fazer fetch para Bybit:', error);
+    throw error;
+  }
 }
 
 function detectEqualLevels(prices: number[], threshold = 0.0005): number[] {

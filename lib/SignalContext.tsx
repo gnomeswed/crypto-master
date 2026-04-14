@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { analyzePair } from "./engine";
 import { addSignal, loadSignals, saveSignals, updateSignalStatus } from "./storage";
 import { saveSignalToCloud, updateSignalResult, fetchSignalsFromCloud } from "./supabase";
@@ -286,34 +286,6 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (window as any).signalContextActions = { executeTrade, closeTrade };
     syncActiveTrades();
-  }, [executeTrade, syncActiveTrades, closeTrade]);
-
-  // ── Loop de preços rápidos para trades ativos (3s) ───────
-  useEffect(() => {
-    if (activeTrades.length === 0) return;
-    const fast = async () => {
-      const symbols   = activeTrades.map(t => `"%22${t.par}USDT"%22`).join(",");
-      const targetUrl = `https://api.binance.com/api/v3/ticker/price?symbols=[${symbols.replace(/"/g,'')}]`;
-      for (const getProxy of PROXY_LIST) {
-        try {
-          const res = await fetch(getProxy(targetUrl), { cache: "no-store" });
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (!data || data.length === 0) continue;
-          const prices: Record<string, number> = { ...activePrices };
-          data.forEach((t: any) => {
-            prices[t.symbol.replace("USDT", "")] = parseFloat(t.price);
-          });
-          setActivePrices(prices);
-          break;
-        } catch { continue; }
-      }
-    };
-    const iv = setInterval(fast, 3000);
-    fast();
-    return () => clearInterval(iv);
-  }, [activeTrades]);
-
   // ── Análise principal (30s) ──────────────────────────────
   const runAnalysis = useCallback(async () => {
     if (isLoading) return;
@@ -419,12 +391,14 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (countdown === 0) runAnalysis(); }, [countdown, runAnalysis]);
   useEffect(() => { runAnalysis(); }, []);
 
+  const contextValue = useMemo(() => ({
+    scannedSignals, activeTrades, isLoading, lastUpdate, refresh,
+    selectedPair, setSelectedPair, activeView, setActiveView,
+    countdown, errorMessage, activePrices,
+  }), [scannedSignals, activeTrades, isLoading, lastUpdate, selectedPair, activeView, countdown, errorMessage, activePrices]);
+
   return (
-    <SignalContext.Provider value={{
-      scannedSignals, activeTrades, isLoading, lastUpdate, refresh,
-      selectedPair, setSelectedPair, activeView, setActiveView,
-      countdown, errorMessage, activePrices,
-    }}>
+    <SignalContext.Provider value={contextValue}>
       {isSyncing && (
         <div className="fixed top-0 inset-x-0 z-[200] bg-brand-500/90 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest backdrop-blur-md">
           <CloudDownload className="w-4 h-4 animate-pulse" />

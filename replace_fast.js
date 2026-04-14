@@ -1,23 +1,33 @@
 ﻿const fs = require("fs");
-const path = "lib/SignalContext.tsx";
-let content = fs.readFileSync(path, "utf8");
+const c = fs.readFileSync("lib/SignalContext.tsx", "utf8");
 
-const regex = /const fast = async \(\) => \{[\s\S]*?\n\s+for \(const getProxy of PROXY_LIST\) \{[\s\S]*?\} catch \{ continue; \}\n\s+\}\n\s+\};/m;
+const targetStartText = "    const fast = async () => {";
+const targetEndText = "    const iv = setInterval(fast, 3000);";
 
-const newFast = `const fast = async () => {
-      const targetUrl = \`https://api.binance.com/api/v3/ticker/price\`;
+const iStart = c.indexOf(targetStartText);
+const iEnd = c.indexOf(targetEndText);
+
+if (iStart === -1 || iEnd === -1) {
+    console.error("Could not find boundaries");
+    process.exit(1);
+}
+
+const beforeBlock = c.substring(0, iStart);
+const afterBlock = c.substring(iEnd);
+
+const newFastBlock = `    const fast = async () => {
+      const targetUrl = "https://api.binance.com/api/v3/ticker/price";
       try {
           const res = await fetch(targetUrl, { cache: "no-store" });
           if (!res.ok) return;
           const data = await res.json();
           if (!data || !Array.isArray(data)) return;
           
-          const prices: Record<string, number> = { ...activePrices };
-          data.forEach((t: any) => {
+          const prices = { ...activePrices };
+          data.forEach((t) => {
             const pairName = t.symbol.replace("USDT", "");
             prices[pairName] = parseFloat(t.price);
             
-            // Fallback legado para suporte aos contratos abertos na Bybit (que continham prefixo 1000)
             if (pairName === "PEPE") prices["1000PEPE"] = parseFloat(t.price) * 1000;
             if (pairName === "FLOKI") prices["1000FLOKI"] = parseFloat(t.price) * 1000;
             if (pairName === "BONK") prices["1000BONK"] = parseFloat(t.price) * 1000;
@@ -25,8 +35,9 @@ const newFast = `const fast = async () => {
           });
           setActivePrices(prices);
       } catch (err) { console.warn("Erro no fast loop:", err); }
-    };`;
+    };
 
-content = content.replace(regex, newFast);
-fs.writeFileSync(path, content);
-console.log("Fast loop updated.");
+`;
+
+fs.writeFileSync("lib/SignalContext.tsx", beforeBlock + newFastBlock + afterBlock);
+console.log("Fast loop successfully updated via pure substring replacement!");

@@ -1,4 +1,6 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Crypto Dashboard
+
+Um dashboard avançado para análise de criptomoedas baseado na metodologia SMC (Smart Money Concepts), com scanner em tempo real e gestão de risco automatizada.
 
 ## Getting Started
 

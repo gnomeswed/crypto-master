@@ -1,4 +1,4 @@
-import { Signal, SMCChecklist, RiskConfig, TradeCalculation } from './types';
+import { Signal, SMCChecklist, RiskConfig, TradeCalculation, SignalSchema, RiskConfigSchema } from './types';
 
 const STORAGE_KEY = 'crypto_master_signals';
 
@@ -8,8 +8,15 @@ export function loadSignals(): Signal[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
+    if (!Array.isArray(parsed)) return [];
+    // Validate each signal
+    const validated = parsed.map((item) => {
+      const result = SignalSchema.safeParse(item);
+      return result.success ? result.data : null;
+    }).filter((item): item is Signal => item !== null);
+    return validated;
+  } catch (error) {
+    console.error('Erro ao carregar sinais do localStorage:', error);
     return [];
   }
 }
@@ -47,9 +54,16 @@ export function deleteSignal(id: string): Signal[] {
 
 export function loadRiskConfig(): RiskConfig {
   if (typeof window === 'undefined') return { capitalTotal: 1000, riscoPorTradePercentual: 1 };
-  const raw = localStorage.getItem('smc_risk_config');
-  if (raw) return JSON.parse(raw);
-  return { capitalTotal: 1000, riscoPorTradePercentual: 1 }; // defaults
+  try {
+    const raw = localStorage.getItem('smc_risk_config');
+    if (!raw) return { capitalTotal: 1000, riscoPorTradePercentual: 1 };
+    const parsed = JSON.parse(raw);
+    const result = RiskConfigSchema.safeParse(parsed);
+    return result.success ? result.data : { capitalTotal: 1000, riscoPorTradePercentual: 1 };
+  } catch (error) {
+    console.error('Erro ao carregar configuração de risco:', error);
+    return { capitalTotal: 1000, riscoPorTradePercentual: 1 };
+  }
 }
 
 export function saveRiskConfig(config: RiskConfig): void {
