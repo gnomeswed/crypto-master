@@ -97,6 +97,7 @@ export interface TradeCalculation {
 export interface Signal {
   id: string;
   dataHora: string;
+  dataHoraFim?: string; // NOVO: Fim da operação
   par: string;
   timeframe?: Timeframe;
   pontuacao: number;
@@ -111,11 +112,12 @@ export interface Signal {
   capitalSimulado?: number;
   alavancagem?: number;
   lucroFinalUsdt?: number;
+  lucroFinalPct?: number;      // P&L em % da banca
   tradePosition?: TradeCalculation;
-  // Campos adicionais para relatório personalizado
   reasons?: string[];
   htfBias?: string;
-  relatorio?: string; // Narrativa gerada pelo engine
+  relatorio?: string;
+  fechamentoMotivo?: string;   // Ex: 'Take Profit', 'Stop Loss', 'Manual'
 }
 
 export interface MetricaSummary {
