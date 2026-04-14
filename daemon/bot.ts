@@ -99,7 +99,6 @@ async function runDaemonLoop() {
   console.log(`\n[${new Date().toLocaleTimeString()}] Iniciando Varredura...`);
 
   try {
-  try {
     let tickerData = [];
     try {
       const res = await fetch("https://api.binance.com/api/v3/ticker/24hr", { cache: "no-store", keepalive: true });
