@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { 
   LayoutDashboard, 
   History, 
@@ -14,6 +15,7 @@ import SettingsView from '@/components/Views/SettingsView';
 import { useSignals } from '@/lib/SignalContext';
 
 export default function SaaSLayout() {
+  const [showNotifications, setShowNotifications] = useState(false);
   const { activeView, setActiveView } = useSignals();
 
   return (
@@ -64,17 +66,47 @@ export default function SaaSLayout() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative h-full">
-        <header className="h-16 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-md flex items-center justify-between px-8 z-10">
+        <header className="h-16 border-b border-slate-800/60 bg-slate-900/80 backdrop-blur-md flex items-center justify-between px-8 z-20">
           <h2 className="text-sm font-semibold text-slate-300">
             {activeView === 'DASHBOARD' && 'Rainel Live de Liquidez'}
             {activeView === 'HISTORY' && 'Oportunidades de Elite'}
             {activeView === 'SETTINGS' && 'Ajustes de Risco'}
           </h2>
-          <div className="flex items-center gap-4">
-            <button className="relative text-slate-400 hover:text-slate-200 transition-colors">
+          <div className="flex items-center gap-4 relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className={`relative p-2 rounded-full transition-all ${showNotifications ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-200'}`}
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-900"></span>
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-900"></span>
             </button>
+
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div className="absolute top-14 right-0 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-bold text-white uppercase tracking-widest">Status do Sistema</span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                </div>
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                    <p className="text-[10px] text-slate-300 font-medium">Scanner Cloud Ativo</p>
+                    <p className="text-[9px] text-slate-500 mt-1">Monitorando 25 pares em tempo real de forma independente.</p>
+                  </div>
+                  <div className="p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                    <p className="text-[10px] text-slate-300 font-medium">Alertas Visuais</p>
+                    <p className="text-[9px] text-slate-500 mt-1">Sinais com nota 10 serão destacados automaticamente.</p>
+                  </div>
+                </div>
+                <button 
+                   onClick={() => setShowNotifications(false)}
+                   className="w-full mt-4 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 rounded-lg transition-colors uppercase"
+                >
+                  Fechar Painel
+                </button>
+              </div>
+            )}
+
             <div className="h-4 w-px bg-slate-800"></div>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">

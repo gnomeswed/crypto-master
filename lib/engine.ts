@@ -88,7 +88,41 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
   if (checklist.orderBlockQualidade) score += 2;
   if (checklist.entradaNaReacao) score += 1;
 
-  const bias = isBullish ? 70 : 30;
+  // GERAÇÃO DE NARRATIVA DINÂMICA DO ESPECIALISTA
+  const reasons: string[] = [];
+  
+  if (checklist.liquidezIdentificada) {
+    reasons.push(`Captura de Liquidez detectada: O preço limpou zonas de ${isBullish ? 'mínimas (PDL/SSL)' : 'máximas (PDH/BSL)'}.`);
+  } else {
+    reasons.push("Observando o preço se aproximar de zonas de liquidez institucional.");
+  }
+
+  if (checklist.sweepConfirmado) {
+    reasons.push("Rejeição de Pavio Confirmada: Forte indício de absorção de ordens por grandes players.");
+  }
+
+  if (checklist.chochDetectado) {
+    reasons.push(`${isBullish ? 'Quebra de Estrutura de Baixa' : 'Quebra de Estrutura de Alta'} (CHoCH) identificada no M15.`);
+  }
+
+  if (checklist.orderBlockQualidade) {
+    reasons.push(isBullish ? "Order Block de Compra formado. O preço pode buscar reteste nesta zona." : "Order Block de Venda identificado. Atenção para resistência institucional.");
+  }
+
+  if (checklist.volumeAlinhado) {
+    reasons.push("Volume Proporcional: O momentum está favorável para a continuidade do movimento.");
+  }
+
+  // Se a nota for muito baixa, o especialista dá um conselho
+  if (score < 4) {
+    reasons.push("Cenário de Baixa Probabilidade: Recomendo aguardar uma captura de liquidez mais clara.");
+  } else if (score >= 4 && score < 7) {
+    reasons.push("Atenção: Setup em construção. Faltam gatilhos de confirmação para uma entrada de alta acerto.");
+  } else {
+    reasons.push("GATILHO ELITE: Todas as confluências institucionais estão alinhadas para a operação.");
+  }
+
+  const bias = isBullish ? (50 + (score * 4)) : (50 - (score * 4));
   const action = score >= 8 ? (isBullish ? 'Long' : 'Short') : 'Aguardar';
 
   const setup = {
@@ -101,7 +135,7 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
   return {
     score,
     action,
-    reasons: score >= 7 ? ["Forte Rejeição de Pavio", "Captura de Liquidez", "Order Block Identificado"] : ["Aguardando Confirmação"],
+    reasons,
     checklist,
     setup,
     bias,
