@@ -50,3 +50,31 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-600;
 }
+
+/* ── Mobile Utilities ─────────────────────────────── */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area para iPhone com notch/home bar */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Viewport height real no mobile (evita barra de endereço) */
+html {
+  height: -webkit-fill-available;
+}
+body {
+  min-height: -webkit-fill-available;
+}
+
+/* Previne seleção de texto em botões de nav */
+nav button {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
