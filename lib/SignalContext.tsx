@@ -32,44 +32,33 @@ function buildFechamentoMotivo(
 
 // ─── Relatório de abertura ─────────────────────────────────
 function generateRelatorio(analysis: any, pair: string, entry: number): string {
-  const dir    = analysis.action === "Long" ? "compra (LONG)" : "venda (SHORT)";
-  const bias   = analysis.htfBias === "BULLISH" ? "altista" : analysis.htfBias === "BEARISH" ? "baixista" : "neutro";
-  const struct = analysis.structureType === "IMPULSIVE" ? "impulsiva" : analysis.structureType === "CORRECTIVE" ? "corretiva" : "neutra";
-  const cl     = analysis.checklist || {};
+  const isLong = analysis.action === "Long";
+  const icon = isLong ? "🔼" : "🔽";
+  const dirName = isLong ? "Long" : "Short";
+  
+  const startLine = `${icon}${dirName} - $${pair} (scalp)\n\n`;
+  
+  const sl = analysis.setup?.sl || entry;
+  const slDist = Math.abs(entry - sl);
+  
+  const tp1 = isLong ? entry + slDist : entry - slDist;
+  const tp2 = isLong ? entry + slDist * 2 : entry - slDist * 2;
+  const tp3 = isLong ? entry + slDist * 3 : entry - slDist * 3;
+  const tp4 = isLong ? entry + slDist * 4 : entry - slDist * 4;
 
-  const confluences: string[] = [];
-  if (cl.sweepConfirmado)      confluences.push("Sweep de Liquidez ✅");
-  if (cl.chochDetectado)       confluences.push("CHoCH confirmado ✅");
-  if (cl.orderBlockQualidade)  confluences.push("OB Extremo validado ✅");
-  if (cl.idmDetectado)         confluences.push("IDM (Inducement) detectado ✅");
-  if (cl.liquidezIdentificada) confluences.push("Liquidez PDH/PDL mapeada ✅");
-  if (cl.retestadoOB)          confluences.push("Reteste do OB confirmado ✅");
-
-  const waiting: string[] = [];
-  if (!cl.sweepConfirmado) waiting.push("Sweep de Liquidez");
-  if (!cl.chochDetectado)  waiting.push("CHoCH de confirmação");
-  if (!cl.retestadoOB)     waiting.push("Reteste do Order Block");
-
-  const rsiNote = analysis.indicators?.rsi
-    ? analysis.indicators.rsi < 30
-      ? `RSI em ${analysis.indicators.rsi.toFixed(0)} — sobrevenda, reforça ${dir}.`
-      : analysis.indicators.rsi > 70
-      ? `RSI em ${analysis.indicators.rsi.toFixed(0)} — sobrecompra, reforça ${dir}.`
-      : `RSI em ${analysis.indicators.rsi.toFixed(0)} — neutro.`
+  const decimals = entry < 1 ? 5 : 4;
+  const entryLine = `Entrada: ${entry.toFixed(decimals)} (trade ativa)\n`;
+  const slLine = `SL: ${sl.toFixed(decimals)}\n\n`;
+  
+  const tpsLine = `TP1: ${tp1.toFixed(decimals)}\nTP2: ${tp2.toFixed(decimals)}\nTP3: ${tp3.toFixed(decimals)}\nTP4: ${tp4.toFixed(decimals)}\n\n`;
+  
+  const reasons = analysis.reasons && analysis.reasons.length > 0 
+    ? `\n\n🔎 Setup: ${analysis.reasons.slice(0, 2).join(" | ").replace("🔵 ", "").replace("🔴 ", "")}`
     : "";
 
-  const setupNote = analysis.setup
-    ? `Entrada em $${entry.toFixed(4)}, TP em $${analysis.setup.tp.toFixed(4)}, SL em $${analysis.setup.sl.toFixed(4)} (RR ${analysis.setup.rr}:1).`
-    : "";
+  const finalSummary = `RR máximo ≈ 4.0R\n\nSugestão: 1% da conta em risco (1R)${reasons}`;
 
-  let report = `Operação de ${dir} em ${pair}USDT aberta com ${confluences.length} confluências SMC. `;
-  report += `Viés H4 ${bias} com estrutura ${struct}. `;
-  if (confluences.length > 0) report += `Confirmado por: ${confluences.slice(0, 3).join(", ")}. `;
-  if (rsiNote)  report += rsiNote + " ";
-  if (setupNote) report += setupNote;
-  if (waiting.length > 0) report += ` Aguardando: ${waiting.slice(0, 2).join(" e ")}.`;
-
-  return report;
+  return startLine + entryLine + slLine + tpsLine + finalSummary;
 }
 
 // ─── Append de fechamento no relatório ────────────────────
@@ -354,7 +343,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                 score:         analysis.score,
                 action:        analysis.action as any,
                 timeframe:     analysis.timeframe,
-                statusText:    analysis.checklist?.sweepConfirmado ? "Setup Confirmado" : "Aguardando Sweep",
+                statusText:    analysis.checklist?.retestadoOB || analysis.checklist?.liquidezIdentificada ? "Sinal Master" : "Aguardando Approach",
                 checklist:     analysis.checklist,
                 volume24h:     parseFloat(ticker.quoteVolume),
                 reasons:       analysis.reasons,
