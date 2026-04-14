@@ -167,6 +167,19 @@ export default function PortfolioView() {
                   </div>
                </div>
 
+               {/* 🟡 BREAK EVEN ALERT — Técnica do Eugenio/Tio Mack */}
+               {(() => {
+                 if (!trade.targetTP || !trade.precoEntrada || currentPrice <= 0) return null;
+                 const isLong = trade.direcao === 'LONG';
+                 const halfWay = trade.precoEntrada + (trade.targetTP - trade.precoEntrada) * 0.5;
+                 const reachedHalf = isLong ? currentPrice >= halfWay : currentPrice <= halfWay;
+                 if (!reachedHalf) return null;
+                 return (
+                   <div className="relative z-10 flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 rounded-2xl px-4 py-2.5 animate-pulse">
+                     <span className="text-amber-400 text-[10px] font-black uppercase tracking-wider">🎯 50% do Alvo Atingido — Mover SL para Break Even!</span>
+                   </div>
+                 );
+               })()}
                {/* GRID DE ALVOS (TP / SL / RR) */}
                <div className="grid grid-cols-3 gap-3 relative z-10">
                   <div className="bg-slate-950/40 p-3 rounded-2xl border border-slate-800/60 flex flex-col items-center justify-center text-center">

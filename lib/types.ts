@@ -30,7 +30,12 @@ export interface SMCChecklist {
   volumeAlinhado: boolean;
   rrMinimoTresUm: boolean;
   entradaNaReacao: boolean;
+  idmDetectado: boolean;
+  retestadoOB: boolean;
 }
+
+export type HTFBias = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+export type StructureType = 'IMPULSIVE' | 'CORRECTIVE' | 'NEUTRAL';
 
 export interface SMCAnalysis {
   score: number;
@@ -45,6 +50,8 @@ export interface SMCAnalysis {
   };
   bias: number;
   timeframe: Timeframe;
+  htfBias: HTFBias;
+  structureType: StructureType;
   session: {
     name: string;
     color: string;

@@ -68,10 +68,12 @@ const CHECKLIST_GLOSSARY: Record<string, { label: string; desc: string }> = {
   sweepConfirmado: { label: 'Sweep de Liquidez', desc: 'Acontece quando o preço "fura" a máxima ou mínima e volta rápido.' },
   chochDetectado: { label: 'CHoCH ou BOS', desc: 'Quebra de Estrutura. Confirma que a tendência mudou e a reversão é real.' },
   orderBlockQualidade: { label: 'Order Block', desc: 'Uma zona de forte compra ou venda institucional para entrar no reteste.' },
-  contextoMacroAlinhado: { label: 'Contexto Macro', desc: 'Verifica se a tendência maior concorda com a sua entrada.' },
+  contextoMacroAlinhado: { label: 'Viés H4 Alinhado', desc: 'O H4 confirma a direção do trade no M15. Sem isso, o risco é 2x maior.' },
   entradaNaReacao: { label: 'Entrada na Reação', desc: 'Esperamos o preço "bater e voltar" antes de clicar no botão.' },
   rrMinimoTresUm: { label: 'RR 3:1', desc: 'Relação Risco-Retorno. Buscamos ganhar 3x o que arriscamos.' },
-  volumeAlinhado: { label: 'Pulse do Momentum', desc: 'Evita entrar quando o preço está "esticado" demais.' }
+  volumeAlinhado: { label: 'Pulse do Momentum', desc: 'Evita entrar quando o preço está "esticado" demais.' },
+  idmDetectado: { label: 'IDM (Inducement)', desc: 'Armadilha do varejo detectada antes do Sweep real. Sinal de altíssima qualidade — o Eugenio Method.' },
+  retestadoOB: { label: 'Reteste do OB', desc: 'O preço voltou à zona do Order Block para uma entrada de precisão milimétrica.' }
 };
 
 export default function SignalAnalyzer({ externalPair }: { externalPair: string }) {
@@ -167,6 +169,49 @@ export default function SignalAnalyzer({ externalPair }: { externalPair: string 
           <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Probabilidade: {bias}%</span>
         </div>
       </div>
+
+      {/* PAINEL DE INTELIGÊNCIA HTF */}
+      {activeSignal && (
+        <div className="grid grid-cols-3 gap-2">
+          {/* HTF Bias */}
+          <div className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center ${
+            (activeSignal as any).htfBias === 'BULLISH' ? 'bg-emerald-500/10 border-emerald-500/30' :
+            (activeSignal as any).htfBias === 'BEARISH' ? 'bg-red-500/10 border-red-500/30' :
+            'bg-slate-800/50 border-slate-700/50'
+          }`}>
+            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Viés H4</span>
+            <span className={`text-sm font-black mt-1 ${
+              (activeSignal as any).htfBias === 'BULLISH' ? 'text-emerald-400' :
+              (activeSignal as any).htfBias === 'BEARISH' ? 'text-red-400' : 'text-slate-400'
+            }`}>
+              {(activeSignal as any).htfBias === 'BULLISH' ? '▲ ALTA' : (activeSignal as any).htfBias === 'BEARISH' ? '▼ BAIXA' : '— NEUTRO'}
+            </span>
+          </div>
+          {/* Structure Type */}
+          <div className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center ${
+            (activeSignal as any).structureType === 'IMPULSIVE' ? 'bg-blue-500/10 border-blue-500/30' :
+            (activeSignal as any).structureType === 'CORRECTIVE' ? 'bg-amber-500/10 border-amber-500/30' :
+            'bg-slate-800/50 border-slate-700/50'
+          }`}>
+            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Estrutura</span>
+            <span className={`text-sm font-black mt-1 ${
+              (activeSignal as any).structureType === 'IMPULSIVE' ? 'text-blue-400' :
+              (activeSignal as any).structureType === 'CORRECTIVE' ? 'text-amber-400' : 'text-slate-400'
+            }`}>
+              {(activeSignal as any).structureType === 'IMPULSIVE' ? '⚡ IMPULS.' : (activeSignal as any).structureType === 'CORRECTIVE' ? '🚩 CORRET.' : '○ NEUTRO'}
+            </span>
+          </div>
+          {/* IDM */}
+          <div className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center ${
+            activeSignal.checklist?.idmDetectado ? 'bg-brand-500/10 border-brand-500/30' : 'bg-slate-800/50 border-slate-700/50'
+          }`}>
+            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">IDM</span>
+            <span className={`text-sm font-black mt-1 ${activeSignal.checklist?.idmDetectado ? 'text-brand-400' : 'text-slate-600'}`}>
+              {activeSignal.checklist?.idmDetectado ? '🎯 DETECT.' : '○ N/A'}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
         <div className="lg:col-span-8 flex flex-col gap-4">
