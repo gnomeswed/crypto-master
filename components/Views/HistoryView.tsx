@@ -201,7 +201,7 @@ export default function HistoryView() {
   const [expandedId, setExpandedId]   = useState<string | null>(null);
   const [filterResult, setFilter]     = useState<"ALL" | "GREEN" | "LOSS" | "ABERTO">("ALL");
   const [filterDir, setFilterDir]     = useState<"ALL" | "LONG" | "SHORT">("ALL");
-  const { setSelectedPair, setActiveView, activePrices } = useSignals();
+  const { setSelectedPair, setActiveView, activePrices, scannedSignals } = useSignals();
 
   const loadData = async () => {
     setIsLoading(true);
@@ -372,7 +372,13 @@ export default function HistoryView() {
                 const isWin      = s.resultado === "GREEN";
                 const isLoss     = s.resultado === "LOSS";
                 const isExpanded = expandedId === s.id;
-                const currentPrice = activePrices ? (activePrices[s.par] || s.precoEntrada) : s.precoEntrada;
+                const priceInfo = scannedSignals?.find(p => p.pair === s.par);
+                let currentPrice = s.precoEntrada;
+                if (activePrices && activePrices[s.par]) {
+                    currentPrice = activePrices[s.par];
+                } else if (priceInfo?.lastPrice) {
+                    currentPrice = parseFloat(priceInfo.lastPrice);
+                }
                 const dur        = s.dataHoraFim ? calcDuration(s.dataHora, s.dataHoraFim) : null;
 
                 return (

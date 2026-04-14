@@ -101,12 +101,18 @@ function SignalCard({ signal, onSelect }: { signal: any; onSelect: (pair: string
 }
 
 // ─── Row histórico estilo extrato ─────────────────────────
-function HistExtrato({ signal, onGoToChart, activePrices }: { signal: Signal; onGoToChart: (par: string) => void; activePrices: any; }) {
+function HistExtrato({ signal, onGoToChart, activePrices, scannedSignals }: { signal: Signal; onGoToChart: (par: string) => void; activePrices: any; scannedSignals: any[] }) {
   const [expanded, setExpanded] = useState(false);
   const isWin  = signal.resultado === "GREEN";
   const isLoss = signal.resultado === "LOSS";
   const isOpen = signal.resultado === "ABERTO";
-  const currentPrice = activePrices ? (activePrices[signal.par] || signal.precoEntrada) : signal.precoEntrada;
+  const priceInfo = scannedSignals?.find((p: any) => p.pair === signal.par);
+  let currentPrice = signal.precoEntrada;
+  if (activePrices && activePrices[signal.par]) {
+      currentPrice = activePrices[signal.par];
+  } else if (priceInfo?.lastPrice) {
+      currentPrice = parseFloat(priceInfo.lastPrice);
+  }
 
   return (
     <>
@@ -427,7 +433,7 @@ export default function MetricCards() {
             {[...histSignals]
               .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
               .map((s, i) => (
-                <HistExtrato key={s.id || i} signal={s} onGoToChart={handleGoToChart} activePrices={activePrices} />
+                <HistExtrato key={s.id || i} signal={s} onGoToChart={handleGoToChart} activePrices={activePrices} scannedSignals={scannedSignals} />
               ))}
           </div>
         )}
