@@ -60,6 +60,13 @@ export default function HistoryView() {
     setActiveView('DASHBOARD');
   };
 
+  const handleClearAll = () => {
+    if (confirm('⚠️ Isso vai apagar TODO o histórico local (inclusive os 44 falsos do bug). Confirmar?')) {
+      localStorage.removeItem('crypto_master_signals');
+      setSignals([]);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       
@@ -72,11 +79,20 @@ export default function HistoryView() {
               {dataSource} STORAGE
             </span>
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Sinais de elite (Nota 8+) registrados automaticamente pelo algoritmo e operações manuais.</p>
+          <p className="text-sm text-slate-500 mt-1">Operações registradas com Score ≥ 11/14 (padrão institucional SMC).</p>
         </div>
-        <button onClick={loadData} className="saas-card px-4 py-2 text-xs font-bold hover:bg-slate-800 transition-all">
-          Atualizar Lista
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={loadData} className="saas-card px-4 py-2 text-xs font-bold hover:bg-slate-800 transition-all">
+            Atualizar Lista
+          </button>
+          <button 
+            onClick={handleClearAll} 
+            className="px-4 py-2 text-xs font-bold text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/10 transition-all"
+            title="Limpar histórico local (remove trades falsos do bug)"
+          >
+            🗑️ Limpar Histórico
+          </button>
+        </div>
       </div>
 
       <div className="saas-card overflow-hidden">

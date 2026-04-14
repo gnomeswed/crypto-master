@@ -204,14 +204,17 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
             try {
               const analysis = await analyzePair(pairName);
               
-              if (analysis.score >= 8) {
+              // ✅ Threshold ajustado para >= 11/14 (equivalente ao antigo >= 8/10)
+              // ✅ Só abre trade se action for Long ou Short (não Aguardar/Evitar)
+              if (analysis.score >= 11 && (analysis.action === 'Long' || analysis.action === 'Short')) {
                 const existing = loadSignals();
                 const alreadyOpen = existing.find(s => s.par === pairName && s.resultado === 'ABERTO');
                 if (!alreadyOpen) {
                   const autoSignal: any = {
+                    id: `auto-${Date.now()}-${pairName}`,
                     dataHora: new Date().toISOString(),
                     par: pairName,
-                    timeframe: analysis.timeframe, // Salva o horizonte temporal
+                    timeframe: analysis.timeframe,
                     pontuacao: analysis.score,
                     direcao: (analysis.action as string).toUpperCase(),
                     precoEntrada: parseFloat(ticker.lastPrice),
@@ -219,7 +222,9 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                     targetTP: analysis.setup?.tp,
                     rr: analysis.setup?.rr,
                     resultado: 'ABERTO',
-                    checklist: analysis.checklist
+                    checklist: analysis.checklist,
+                    htfBias: analysis.htfBias,
+                    structureType: analysis.structureType,
                   };
                   addSignal(autoSignal);
                   saveSignalToCloud(autoSignal);
