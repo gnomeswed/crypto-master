@@ -27,9 +27,21 @@ async function fetchWithFallback(path: string, params: Record<string, string>) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// CACHE HTF BIAS — Evita sobrecarga de API (TTL: 5 minutos)
+// ═══════════════════════════════════════════════════════════
+const htfBiasCache: Record<string, { bias: HTFBias; ts: number }> = {};
+const HTF_CACHE_TTL = 5 * 60 * 1000; // 5 minutos em ms
+
+// ═══════════════════════════════════════════════════════════
 // MÓDULO 1: HTF BIAS — Detecta viés institucional no H4
 // ═══════════════════════════════════════════════════════════
 async function detectHTFBias(pair: string): Promise<HTFBias> {
+  // 1. Verifica cache primeiro — H4 não muda em 30 segundos
+  const cached = htfBiasCache[pair];
+  if (cached && Date.now() - cached.ts < HTF_CACHE_TTL) {
+    return cached.bias;
+  }
+
   try {
     const data = await fetchWithFallback('/v5/market/kline', {
       symbol: `${pair}USDT`,
@@ -47,12 +59,8 @@ async function detectHTFBias(pair: string): Promise<HTFBias> {
       volume: parseFloat(c[5])
     })).reverse();
 
-    // Análise de Higher Highs / Higher Lows vs Lower Highs / Lower Lows
     const recent = candles.slice(-6);
-    let hhCount = 0; // Higher Highs
-    let hlCount = 0; // Higher Lows
-    let lhCount = 0; // Lower Highs
-    let llCount = 0; // Lower Lows
+    let hhCount = 0, hlCount = 0, lhCount = 0, llCount = 0;
 
     for (let i = 1; i < recent.length; i++) {
       if (recent[i].high > recent[i - 1].high) hhCount++;
@@ -61,11 +69,15 @@ async function detectHTFBias(pair: string): Promise<HTFBias> {
       if (recent[i].low < recent[i - 1].low) llCount++;
     }
 
-    if (hhCount >= 3 && hlCount >= 2) return 'BULLISH';
-    if (lhCount >= 3 && llCount >= 2) return 'BEARISH';
-    return 'NEUTRAL';
+    let bias: HTFBias = 'NEUTRAL';
+    if (hhCount >= 3 && hlCount >= 2) bias = 'BULLISH';
+    else if (lhCount >= 3 && llCount >= 2) bias = 'BEARISH';
+
+    // 2. Armazena no cache
+    htfBiasCache[pair] = { bias, ts: Date.now() };
+    return bias;
   } catch {
-    return 'NEUTRAL';
+    return 'NEUTRAL'; // Falha silenciosa — nunca bloqueia o scanner
   }
 }
 
@@ -168,15 +180,12 @@ function isRetestingOB(candles: Candle[], isBullish: boolean): boolean {
 // ═══════════════════════════════════════════════════════════
 export async function analyzePair(pair: string, interval: string = '15'): Promise<SMCAnalysis> {
   try {
-    // Busca candles do M15 (análise principal)
-    const [data, htfBias] = await Promise.all([
-      fetchWithFallback('/v5/market/kline', {
-        symbol: `${pair}USDT`,
-        interval,
-        limit: '100'
-      }),
-      detectHTFBias(pair) // HTF H4 em paralelo
-    ]);
+    // Busca candles do M15 (análise principal) — sempre prioritária
+    const data = await fetchWithFallback('/v5/market/kline', {
+      symbol: `${pair}USDT`,
+      interval,
+      limit: '100'
+    });
 
     if (!data.result?.list || data.result.list.length === 0) throw new Error("Sem dados");
 
@@ -188,6 +197,10 @@ export async function analyzePair(pair: string, interval: string = '15'): Promis
       close: parseFloat(c[4]),
       volume: parseFloat(c[5])
     })).reverse();
+
+    // HTF Bias — busca H4 APENAS se não estiver em cache (evita 25 chamadas simultâneas)
+    // Em 99% dos scans, retorna do cache instantaneamente sem chamar a API
+    const htfBias = await detectHTFBias(pair).catch(() => 'NEUTRAL' as HTFBias);
 
     return calculateSMC(candles, pair, interval, htfBias);
   } catch (error) {
