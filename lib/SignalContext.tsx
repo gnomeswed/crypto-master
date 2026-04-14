@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { analyzePair } from './engine';
-import { addSignal, loadSignals, updateSignal, generateId } from './storage';
-import { supabase, fetchSignalsFromCloud, saveSignalToCloud } from './supabase';
+import { addSignal, loadSignals } from './storage';
+import { supabase, saveSignalToCloud } from './supabase';
+import { AlertCircle } from 'lucide-react';
 
 export type DashboardViewType = 'DASHBOARD' | 'HISTORY' | 'SETTINGS';
 
@@ -35,6 +36,7 @@ interface SignalContextType {
   activeView: DashboardViewType;
   setActiveView: (v: DashboardViewType) => void;
   countdown: number;
+  errorMessage: string | null;
 }
 
 const SignalContext = createContext<SignalContextType | undefined>(undefined);
@@ -48,17 +50,25 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [selectedPair, setSelectedPair] = useState<string>('BTC');
   const [activeView, setActiveView] = useState<DashboardViewType>('DASHBOARD');
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
-  
-  const isCheckingPositionRef = useRef(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const runAnalysis = useCallback(async () => {
     if (isLoading) return;
     setIsLoading(true);
+    setErrorMessage(null);
     try {
-      const tickerRes = await fetch(`/api/bybit?path=/v5/market/tickers&category=linear&_t=${Date.now()}`, { cache: 'no-store' });
+      const tickerRes = await fetch(`/api/bybit?path=/v5/market/tickers&category=linear&_t=${Date.now()}`);
+      
+      if (!tickerRes.ok) {
+        const errText = await tickerRes.text();
+        throw new Error(`Erro na API (${tickerRes.status}): ${errText.substring(0, 50)}`);
+      }
+
       const tickerData = await tickerRes.json();
       
-      if (!tickerData.result?.list) throw new Error("Falha ao buscar tickers");
+      if (!tickerData.result?.list) {
+        throw new Error("Bybit retornou lista vazia ou erro no formato");
+      }
 
       const allPairs = tickerData.result.list
         .filter((t: any) => t.symbol.endsWith('USDT'))
@@ -71,13 +81,11 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
           try {
             const analysis = await analyzePair(pairName);
             
-            // GRAVAÇÃO AUTOMÁTICA EM CASO DE NOTA 10
             if (analysis.score >= 10) {
               const existing = loadSignals();
               const alreadyOpen = existing.find(s => s.par === pairName && s.resultado === 'ABERTO');
               if (!alreadyOpen) {
                 const newSignal: any = {
-                  id: generateId(),
                   dataHora: new Date().toISOString(),
                   par: pairName,
                   pontuacao: analysis.score,
@@ -89,10 +97,7 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                   checklist: analysis.checklist,
                   targetTP: analysis.setup?.tp
                 };
-                
-                // Salva Local
                 addSignal(newSignal);
-                // Salva na Nuvem (Supabase)
                 saveSignalToCloud(newSignal);
               }
             }
@@ -127,8 +132,9 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
       setLastUpdate(new Date());
       setCountdown(REFRESH_INTERVAL);
       
-    } catch (error) {
-      console.error('Erro no Hunter Global:', error);
+    } catch (error: any) {
+      console.error('Erro no Hunter:', error);
+      setErrorMessage(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -146,8 +152,14 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
       scannedSignals, isLoading, lastUpdate, refresh: runAnalysis,
       selectedPair, setSelectedPair,
       activeView, setActiveView,
-      countdown
+      countdown, errorMessage
     }}>
+      {errorMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-red-500/90 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl backdrop-blur-md border border-red-400/50 animate-bounce">
+          <AlertCircle className="w-5 h-5" />
+          <span className="text-sm font-bold uppercase tracking-wider">Erro Crucial: {errorMessage}</span>
+        </div>
+      )}
       {children}
     </SignalContext.Provider>
   );
