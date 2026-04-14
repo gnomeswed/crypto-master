@@ -2,10 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { analyzePair } from './engine';
-import { addSignal, loadSignals, updateSignalStatus } from './storage';
-import { saveSignalToCloud, updateSignalResult } from './supabase';
-import { WifiOff } from 'lucide-react';
+import { addSignal, loadSignals, saveSignals, updateSignalStatus } from './storage';
+import { saveSignalToCloud, updateSignalResult, fetchSignalsFromCloud } from './supabase';
+import { WifiOff, CloudDownload } from 'lucide-react';
 import { Signal } from './types';
+
 
 // ─── Helpers de Banca e Capital ───────────────────────────────
 /** Lê banca do localStorage e retorna 5% como capital por trade */
@@ -110,21 +111,48 @@ const PROXY_LIST = [
 
 export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [scannedSignals, setScannedSignals] = useState<ScannedSignal[]>([]);
-  const [activeTrades, setActiveTrades] = useState<Signal[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [selectedPair, setSelectedPair] = useState<string>('BTC');
-  const [activeView, setActiveView] = useState<DashboardViewType>('DASHBOARD');
-  const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activePrices, setActivePrices] = useState<Record<string, number>>({});
+  const [activeTrades, setActiveTrades]     = useState<Signal[]>([]);
+  const [isLoading, setIsLoading]           = useState(false);
+  const [isSyncing, setIsSyncing]           = useState(true); // sync inicial
+  const [lastUpdate, setLastUpdate]         = useState<Date | null>(null);
+  const [selectedPair, setSelectedPair]     = useState<string>('BTC');
+  const [activeView, setActiveView]         = useState<DashboardViewType>('DASHBOARD');
+  const [countdown, setCountdown]           = useState(REFRESH_INTERVAL);
+  const [errorMessage, setErrorMessage]     = useState<string | null>(null);
+  const [activePrices, setActivePrices]     = useState<Record<string, number>>({});
 
-  // Sincroniza trades ativos do storage local
+  // ─── Sincroniza trades ativos do storage local ────────────────
   const syncActiveTrades = useCallback(() => {
     const all = loadSignals();
     const active = all.filter(s => s.resultado === 'ABERTO');
     setActiveTrades(active);
   }, []);
+
+  // ─── Sincroniza da NUVEM → localStorage (na inicialização) ────
+  const syncFromCloud = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const cloudSignals = await fetchSignalsFromCloud();
+      if (cloudSignals.length > 0) {
+        const localSignals  = loadSignals();
+        // Merge: cloud é source of truth. Registros locais sem ID na nuvem são mantidos.
+        const cloudIds      = new Set(cloudSignals.map(s => s.id));
+        const localOnly     = localSignals.filter(s => !cloudIds.has(s.id));
+        const merged        = [...cloudSignals, ...localOnly];
+        saveSignals(merged);
+        setActiveTrades(merged.filter(s => s.resultado === 'ABERTO'));
+      } else {
+        syncActiveTrades();
+      }
+    } catch {
+      syncActiveTrades();
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [syncActiveTrades]);
+
+  // Sync inicial ao montar
+  useEffect(() => { syncFromCloud(); }, []);
 
   // Monitora trades abertos contra o preço atual
   const monitorTrades = useCallback(async (currentPrices: ScannedSignal[]) => {
@@ -156,17 +184,16 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
         let profit = 0;
         if (trade.capitalSimulado && trade.alavancagem) {
           const movePcnt = Math.abs(currentPrice - trade.precoEntrada) / trade.precoEntrada;
-          profit = result === 'GREEN' 
-            ? trade.capitalSimulado * movePcnt * trade.alavancagem 
+          profit = result === 'GREEN'
+            ? trade.capitalSimulado * movePcnt * trade.alavancagem
             : -trade.capitalSimulado;
         }
 
         updateSignalStatus(trade.id, result);
-        if (trade.id.length > 20) { 
-           await updateSignalResult(trade.id, result, profit);
-        }
+        await updateSignalResult(trade.id, result, profit); // sempre sincroniza nuvem
         syncActiveTrades();
       }
+
     }
   }, [syncActiveTrades]);
 
@@ -223,9 +250,10 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     }
 
     updateSignalStatus(id, result);
-    if (id.length > 20) {
-      await updateSignalResult(id, result, profit);
-    }
+        if (id.length > 0) { // sempre sincroniza nuvem
+          await updateSignalResult(id, result, profit);
+        }
+
     syncActiveTrades();
     alert(`Posição encerrada com sucesso! Resultado: ${result}`);
   }, [scannedSignals, syncActiveTrades]);
@@ -378,13 +406,21 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => runAnalysis(), [runAnalysis]);
 
   return (
-    <SignalContext.Provider value={{ 
+    <SignalContext.Provider value={{
       scannedSignals, activeTrades, isLoading, lastUpdate, refresh,
       selectedPair, setSelectedPair,
       activeView, setActiveView,
       countdown, errorMessage, activePrices
     }}>
-      {errorMessage && (
+      {/* Banner: Sincronizando da nuvem */}
+      {isSyncing && (
+        <div className="fixed top-0 inset-x-0 z-[200] bg-brand-500/90 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest backdrop-blur-md">
+          <CloudDownload className="w-4 h-4 animate-pulse" />
+          Sincronizando operações da nuvem...
+        </div>
+      )}
+      {errorMessage && !isSyncing && (
+
         <div className="fixed bottom-6 left-6 z-[100] bg-orange-500/90 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-md border border-orange-400/50">
           <WifiOff className="w-4 h-4 animate-pulse" />
           <span className="text-xs font-bold uppercase">{errorMessage}</span>
