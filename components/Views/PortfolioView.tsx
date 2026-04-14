@@ -3,9 +3,51 @@
 import { useSignals } from '@/lib/SignalContext';
 import {
   Clock, BarChart3, Target, CheckCircle2, ExternalLink,
-  Zap, ShieldCheck, ZapOff, LayoutGrid, Info, Timer
+  Zap, ShieldCheck, ZapOff, LayoutGrid, Info, Timer, DollarSign
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+
+// ─── Hook: Cotação USD/BRL + Toggle ──────────────────────────
+function useCurrency() {
+  const [showBRL, setShowBRL] = useState(false);
+  const [usdBrl, setUsdBrl]   = useState(5.05); // fallback
+
+  useEffect(() => {
+    fetch('https://economia.awesomeapi.com.br/last/USD-BRL')
+      .then(r => r.json())
+      .then(d => {
+        const rate = parseFloat(d?.USDBRL?.bid);
+        if (!isNaN(rate)) setUsdBrl(rate);
+      })
+      .catch(() => {});
+  }, []);
+
+  const convert = useCallback((usd: number) =>
+    showBRL ? usd * usdBrl : usd
+  , [showBRL, usdBrl]);
+
+  const prefix = showBRL ? 'R$' : '$';
+  const toggle = () => setShowBRL(v => !v);
+
+  return { showBRL, usdBrl, convert, prefix, toggle };
+}
+
+// ─── Componente de Valor com Toggle de Moeda ────────────────
+function CurrencyValue({ usd, prefix, toggle, className = '', decimals = 2 }: {
+  usd: number;
+  prefix: string;
+  toggle: () => void;
+  className?: string;
+  decimals?: number;
+}) {
+  return (
+    <button onClick={toggle} title={`Clique para ${prefix === '$' ? 'ver em R$' : 'ver em USDT'}`}
+      className={`font-mono cursor-pointer hover:opacity-80 transition-opacity ${className}`}>
+      {prefix}{Math.abs(usd).toFixed(decimals)}
+    </button>
+  );
+}
+
 
 // ─── Elapsed Time Hook ────────────────────────────────────
 function useElapsed(dataHora: string) {
@@ -53,12 +95,14 @@ function TradeCard({
   onOpenChart: () => void;
   onClose: (positive: boolean) => void;
 }) {
-  const elapsed  = useElapsed(trade.dataHora);
-  const duration = estimatedDuration(trade.timeframe);
+  const elapsed   = useElapsed(trade.dataHora);
+  const duration  = estimatedDuration(trade.timeframe);
+  const currency  = useCurrency();
 
   const isLong    = trade.direcao === 'LONG';
-  const capital   = trade.capitalSimulado || 0;
-  const lev       = trade.alavancagem || 1;
+  const capital   = trade.capitalSimulado || 1.20; // fallback 5% de $24
+  const lev       = trade.alavancagem || 10;
+
 
   let pnlUsdt = 0, pnlPcnt = 0, distToTP = 0, distToSL = 0;
   let maxProfitUsdt = 0, maxLossUsdt = 0;
@@ -128,14 +172,17 @@ function TradeCard({
             </div>
           </div>
         </div>
-        <div className="text-right">
+      <div className="text-right">
           <div className={`text-2xl font-black font-mono tracking-tighter ${isProfit ? 'text-emerald-500' : 'text-red-500'}`}>
             {isProfit ? '+' : ''}{pnlPcnt.toFixed(2)}%
           </div>
           <div className={`text-[10px] font-bold mt-0.5 ${isProfit ? 'text-emerald-500/60' : 'text-red-500/60'}`}>
-            {isProfit ? '+' : '-'}${Math.abs(pnlUsdt).toFixed(2)} USDT
+            {isProfit ? '+' : '-'}
+            <CurrencyValue usd={Math.abs(pnlUsdt)} prefix={currency.prefix} toggle={currency.toggle} />
+            {' '}USDT
           </div>
         </div>
+
       </div>
 
       {/* ── TEMPO ── */}
@@ -178,20 +225,34 @@ function TradeCard({
       <div className="grid grid-cols-3 gap-2 relative z-10">
         <div className={`p-3 rounded-2xl border flex flex-col items-center text-center ${isProfit ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/5 border-red-500/20'}`}>
           <span className={`text-[7px] font-black uppercase mb-1 ${isProfit ? 'text-emerald-500/70' : 'text-red-500/60'}`}>P&L Atual</span>
-          <span className={`text-sm font-mono font-black ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>{isProfit ? '+' : '-'}${Math.abs(pnlUsdt).toFixed(2)}</span>
+          <span className={`text-sm font-black ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+            {isProfit ? '+' : '-'}
+            <CurrencyValue usd={Math.abs(pnlUsdt)} prefix={currency.prefix} toggle={currency.toggle} className="text-sm font-black" />
+          </span>
           <span className={`text-[8px] font-bold mt-0.5 ${isProfit ? 'text-emerald-500/50' : 'text-red-500/50'}`}>{isProfit ? '+' : ''}{pnlPcnt.toFixed(2)}%</span>
         </div>
         <div className="p-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col items-center text-center">
           <span className="text-[7px] font-black text-emerald-500/60 uppercase mb-1">Máx. Ganho</span>
-          <span className="text-sm font-mono font-black text-emerald-400">{maxProfitUsdt > 0 ? `+$${maxProfitUsdt.toFixed(2)}` : '---'}</span>
+          <span className="text-sm font-black text-emerald-400">
+            {maxProfitUsdt > 0 ? '+' : ''}
+            {maxProfitUsdt > 0
+              ? <CurrencyValue usd={maxProfitUsdt} prefix={currency.prefix} toggle={currency.toggle} className="text-sm font-black text-emerald-400" />
+              : '---'}
+          </span>
           <span className="text-[8px] text-slate-500 font-bold mt-0.5">${trade.targetTP ? trade.targetTP.toFixed(3) : '---'}</span>
         </div>
         <div className="p-3 rounded-2xl border border-red-500/20 bg-red-500/5 flex flex-col items-center text-center">
           <span className="text-[7px] font-black text-red-500/60 uppercase mb-1">Máx. Loss</span>
-          <span className="text-sm font-mono font-black text-red-400">{maxLossUsdt > 0 ? `-$${maxLossUsdt.toFixed(2)}` : '---'}</span>
+          <span className="text-sm font-black text-red-400">
+            {maxLossUsdt > 0 ? '-' : ''}
+            {maxLossUsdt > 0
+              ? <CurrencyValue usd={maxLossUsdt} prefix={currency.prefix} toggle={currency.toggle} className="text-sm font-black text-red-400" />
+              : '---'}
+          </span>
           <span className="text-[8px] text-slate-500 font-bold mt-0.5">${trade.precoStop ? trade.precoStop.toFixed(3) : '---'}</span>
         </div>
       </div>
+
 
       {/* ── GRID TP/SL/RR ── */}
       <div className="grid grid-cols-3 gap-2 relative z-10">
@@ -215,20 +276,34 @@ function TradeCard({
       {/* ── RELATÓRIO ── */}
       <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 relative z-10">
         <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-2">
-          <ShieldCheck className="w-3 h-3 text-blue-500" /> Relatório Tático
+          <ShieldCheck className="w-3 h-3 text-blue-500" /> Relatório do Agente
         </span>
-        <div className="space-y-1">
-          {trade.checklist && Object.entries(trade.checklist).filter(([_, v]) => v).slice(0, 3).map(([key]) => (
-            <div key={key} className="flex items-center gap-2 text-[9px] text-slate-400">
-              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-              <span>Confluência {key.replace(/([A-Z])/g, ' $1').toLowerCase()} validada.</span>
-            </div>
-          ))}
-          <p className="text-[8px] text-slate-500 italic mt-1.5 opacity-60">
-            Setup M{trade.timeframe || 15} — duração estimada: {duration.label}.
-          </p>
-        </div>
+        {/* Relatório personalizado gerado pelo engine */}
+        {trade.relatorio ? (
+          <p className="text-[10px] text-slate-300 leading-relaxed">{trade.relatorio}</p>
+        ) : trade.reasons && trade.reasons.length > 0 ? (
+          <div className="space-y-1">
+            {trade.reasons.slice(0, 4).map((r: string, i: number) => (
+              <p key={i} className="text-[9px] text-slate-400 leading-relaxed border-l-2 border-blue-500/30 pl-2">{r}</p>
+            ))}
+          </div>
+        ) : trade.checklist ? (
+          <div className="space-y-1">
+            {Object.entries(trade.checklist).filter(([_, v]) => v).slice(0, 3).map(([key]) => (
+              <div key={key} className="flex items-center gap-2 text-[9px] text-slate-400">
+                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                <span>Confluência {key.replace(/([A-Z])/g, ' $1').toLowerCase()} validada.</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[9px] text-slate-600 italic">Relatório sendo gerado...</p>
+        )}
+        <p className="text-[8px] text-slate-600 italic mt-2 opacity-50">
+          Setup M{trade.timeframe || 15} — duração estimada: {duration.label}. Capital: {currency.prefix}{currency.convert(capital).toFixed(2)} ({lev}x alavancagem).
+        </p>
       </div>
+
 
       {/* ── ACTIONS ── */}
       <div className="flex gap-2 relative z-10">

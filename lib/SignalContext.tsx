@@ -7,6 +7,61 @@ import { saveSignalToCloud, updateSignalResult } from './supabase';
 import { WifiOff } from 'lucide-react';
 import { Signal } from './types';
 
+// ─── Helpers de Banca e Capital ───────────────────────────────
+/** Lê banca do localStorage e retorna 5% como capital por trade */
+function getAutoCapital(): number {
+  try {
+    const config = localStorage.getItem('risco_config');
+    const { banca } = config ? JSON.parse(config) : { banca: 24 };
+    const banca_num = parseFloat(banca) || 24;
+    return parseFloat((banca_num * 0.05).toFixed(2)); // 5% da banca
+  } catch { return 1.20; } // fallback: 5% de $24
+}
+
+// ─── Gerador de Relatório Personalizado ──────────────────────
+/** Gera uma narrativa legível para o operador baseada nos dados do sinal */
+function generateRelatorio(analysis: any, pair: string, entry: number): string {
+  const dir    = analysis.action === 'Long' ? 'compra (LONG)' : 'venda (SHORT)';
+  const bias   = analysis.htfBias === 'BULLISH' ? 'altista' : analysis.htfBias === 'BEARISH' ? 'baixista' : 'neutro';
+  const struct = analysis.structureType === 'IMPULSIVE' ? 'impulsiva' : analysis.structureType === 'CORRECTIVE' ? 'corretiva' : 'neutra';
+  const cl     = analysis.checklist || {};
+
+  const confluences: string[] = [];
+  if (cl.sweepConfirmado)     confluences.push('Sweep de Liquidez ✅');
+  if (cl.chochDetectado)      confluences.push('CHoCH confirmado ✅');
+  if (cl.orderBlockQualidade) confluences.push('OB Extremo validado ✅');
+  if (cl.idmDetectado)        confluences.push('IDM (Inducement) detectado ✅');
+  if (cl.liquidezIdentificada) confluences.push('Liquidez PDH/PDL mapeada ✅');
+  if (cl.retestadoOB)         confluences.push('Reteste do OB confirmado ✅');
+
+  const waiting: string[] = [];
+  if (!cl.sweepConfirmado)     waiting.push('Sweep de Liquidez');
+  if (!cl.chochDetectado)      waiting.push('CHoCH de confirmação');
+  if (!cl.retestadoOB)         waiting.push('Reteste do Order Block');
+
+  const rsiNote = analysis.indicators?.rsi
+    ? analysis.indicators.rsi < 30
+      ? `RSI em ${analysis.indicators.rsi.toFixed(0)} — zona de sobrevenda, reforça o ${dir}.`
+      : analysis.indicators.rsi > 70
+      ? `RSI em ${analysis.indicators.rsi.toFixed(0)} — zona de sobrecompra, reforça o ${dir}.`
+      : `RSI em ${analysis.indicators.rsi.toFixed(0)} — neutro, aguardar confirmação de vela.`
+    : '';
+
+  const setupNote = analysis.setup
+    ? `Entrada em $${entry.toFixed(4)}, TP em $${analysis.setup.tp.toFixed(4)}, SL em $${analysis.setup.sl.toFixed(4)} (RR ${analysis.setup.rr}:1).`
+    : '';
+
+  let report = `Operação de ${dir} em ${pair}USDT aberta com ${confluences.length} confluências SMC. `;
+  report += `Viés H4 ${bias} com estrutura ${struct}. `;
+  if (confluences.length > 0) report += `Confirmado por: ${confluences.slice(0, 3).join(', ')}. `;
+  if (rsiNote) report += rsiNote + ' ';
+  if (setupNote) report += setupNote;
+  if (waiting.length > 0) report += ` Para o lucro: aguardando ${waiting.slice(0, 2).join(' e ')}.`;
+
+
+  return report;
+}
+
 export type DashboardViewType = 'DASHBOARD' | 'PORTFOLIO' | 'HISTORY' | 'SETTINGS';
 
 interface ScannedSignal {
@@ -122,20 +177,25 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const entryPrice = parseFloat(signal.lastPrice);
+    const relatorio  = `Operação manual de ${signal.action === 'Long' ? 'compra (LONG)' : 'venda (SHORT)'} em ${pair}USDT. Score SMC: ${signal.score}/16. Viés H4: ${(signal as any).htfBias || 'NEUTRO'}. Entrada em $${entryPrice.toFixed(4)}, TP $${signal.setup.tp.toFixed(4)}, SL $${signal.setup.sl.toFixed(4)} (RR ${signal.setup.rr}:1). Capital alocado: $${capital.toFixed(2)} com ${leverage}x de alavancagem.`;
+
     const newTrade: any = {
       id: `man-${Date.now()}`,
       dataHora: new Date().toISOString(),
       par: pair,
       pontuacao: signal.score,
       direcao: (signal.action as string).toUpperCase(),
-      precoEntrada: parseFloat(signal.lastPrice), // Usa o preço real do momento do clique
+      precoEntrada: entryPrice,
       precoStop: signal.setup.sl,
       targetTP: signal.setup.tp,
       rr: signal.setup.rr,
       resultado: 'ABERTO',
       checklist: signal.checklist,
       capitalSimulado: capital,
-      alavancagem: leverage
+      alavancagem: leverage,
+      reasons: signal.reasons,
+      relatorio,
     };
 
     addSignal(newTrade);
@@ -210,21 +270,29 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
                 const existing = loadSignals();
                 const alreadyOpen = existing.find(s => s.par === pairName && s.resultado === 'ABERTO');
                 if (!alreadyOpen) {
+                  const entryPrice    = parseFloat(ticker.lastPrice);
+                  const autoCapital   = getAutoCapital();
+                  const relatorio     = generateRelatorio(analysis, pairName, entryPrice);
+
                   const autoSignal: any = {
-                    id: `auto-${Date.now()}-${pairName}`,
-                    dataHora: new Date().toISOString(),
-                    par: pairName,
-                    timeframe: analysis.timeframe,
-                    pontuacao: analysis.score,
-                    direcao: (analysis.action as string).toUpperCase(),
-                    precoEntrada: parseFloat(ticker.lastPrice),
-                    precoStop: analysis.setup?.sl,
-                    targetTP: analysis.setup?.tp,
-                    rr: analysis.setup?.rr,
-                    resultado: 'ABERTO',
-                    checklist: analysis.checklist,
-                    htfBias: analysis.htfBias,
+                    id:            `auto-${Date.now()}-${pairName}`,
+                    dataHora:      new Date().toISOString(),
+                    par:           pairName,
+                    timeframe:     analysis.timeframe,
+                    pontuacao:     analysis.score,
+                    direcao:       (analysis.action as string).toUpperCase(),
+                    precoEntrada:  entryPrice,
+                    precoStop:     analysis.setup?.sl,
+                    targetTP:      analysis.setup?.tp,
+                    rr:            analysis.setup?.rr,
+                    resultado:     'ABERTO',
+                    checklist:     analysis.checklist,
+                    htfBias:       analysis.htfBias,
                     structureType: analysis.structureType,
+                    capitalSimulado: autoCapital,   // ✔ 5% da banca
+                    alavancagem:     10,             // ✔ padrão
+                    reasons:         analysis.reasons,
+                    relatorio:       relatorio,
                   };
                   addSignal(autoSignal);
                   saveSignalToCloud(autoSignal);

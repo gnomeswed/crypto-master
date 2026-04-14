@@ -112,6 +112,10 @@ export interface Signal {
   alavancagem?: number;
   lucroFinalUsdt?: number;
   tradePosition?: TradeCalculation;
+  // Campos adicionais para relatório personalizado
+  reasons?: string[];
+  htfBias?: string;
+  relatorio?: string; // Narrativa gerada pelo engine
 }
 
 export interface MetricaSummary {
