@@ -1,25 +1,39 @@
 import { SMCAnalysis, Candle } from './types';
 
-// TÚNEL DE CORS PARA BYPASS DE FIREWALL
-const CORS_PROXY = "https://corsproxy.io/?";
-const BYBIT_BASE = "https://api.bybit.com";
+// LISTA DE TÚNEIS DE EMERGÊNCIA (PARA EVITAR BLOQUEIOS)
+const PROXIES = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+];
 
-async function fetchBybit(path: string, params: Record<string, string>) {
+async function fetchWithFallback(path: string, params: Record<string, string>) {
   const queryString = new URLSearchParams({ ...params, category: 'linear' }).toString();
-  const targetUrl = `${BYBIT_BASE}${path}?${queryString}`;
+  const targetUrl = `https://api.bybit.com${path}?${queryString}`;
   
-  // No online, usamos o Proxy CORS para usar o IP do usuário
-  // No localhost, tentamos direto ou via proxy
-  const finalUrl = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
-  
-  const res = await fetch(finalUrl, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`Bybit Offline (${res.status})`);
-  return res.json();
+  let lastError = null;
+
+  // Tenta cada proxy até um funcionar
+  for (const getProxyUrl of PROXIES) {
+    try {
+      const finalUrl = getProxyUrl(targetUrl);
+      const res = await fetch(finalUrl, { cache: 'no-store' });
+      
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err: any) {
+      lastError = err.message;
+      continue;
+    }
+  }
+
+  throw new Error(`Todos os túneis falharam: ${lastError}`);
 }
 
 export async function analyzePair(pair: string, interval: string = '15'): Promise<SMCAnalysis> {
   try {
-    const data = await fetchBybit('/v5/market/kline', {
+    const data = await fetchWithFallback('/v5/market/kline', {
       symbol: `${pair}USDT`,
       interval,
       limit: '100'
@@ -49,16 +63,13 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
   const last = candles[candles.length - 1];
   const prev = candles[candles.length - 2];
   
-  // Lógica Simplificada de SMC (Ajustada para o Dashboard)
   const isBullish = last.close > last.open;
   const highWick = last.high - Math.max(last.open, last.close);
   const lowWick = Math.min(last.open, last.close) - last.low;
   const bodySize = Math.abs(last.close - last.open);
   
-  // Detecção de Rejeição (Pavios Longos)
   const isRejection = highWick > bodySize * 1.5 || lowWick > bodySize * 1.5;
   
-  // Checklist SMC
   const checklist = {
     liquidezIdentificada: lowWick > prev.low * 0.001 || highWick > prev.high * 0.001,
     sweepConfirmado: isRejection,
@@ -70,7 +81,6 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
     rrMinimoTresUm: true
   };
 
-  // Cálculo de Pontuação (0-10)
   let score = 0;
   if (checklist.liquidezIdentificada) score += 2;
   if (checklist.sweepConfirmado) score += 3;
@@ -81,7 +91,6 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
   const bias = isBullish ? 70 : 30;
   const action = score >= 8 ? (isBullish ? 'Long' : 'Short') : 'Aguardar';
 
-  // Setup de Entrada
   const setup = {
     entry: last.close,
     tp: isBullish ? last.close * 1.02 : last.close * 0.98,

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { analyzePair } from './engine';
 import { addSignal, loadSignals } from './storage';
 import { saveSignalToCloud } from './supabase';
-import { AlertCircle, WifiOff } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 
 export type DashboardViewType = 'DASHBOARD' | 'HISTORY' | 'SETTINGS';
 
@@ -43,9 +43,12 @@ const SignalContext = createContext<SignalContextType | undefined>(undefined);
 
 const REFRESH_INTERVAL = 30;
 
-// TÚNEL NEUTRO PARA BYPASS DE WAF (CORS)
-const CORS_PROXY = "https://proxy.cors.sh/"; // Backup: "https://corsproxy.io/?"
-const BYBIT_API = "https://api.bybit.com/v5/market/tickers?category=linear";
+// ESTRATÉGIA DE TUNELAMENTO MÚLTIPLO
+const PROXY_LIST = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+];
 
 export function SignalProvider({ children }: { children: React.ReactNode }) {
   const [scannedSignals, setScannedSignals] = useState<ScannedSignal[]>([]);
@@ -60,81 +63,90 @@ export function SignalProvider({ children }: { children: React.ReactNode }) {
     if (isLoading) return;
     setIsLoading(true);
     setErrorMessage(null);
-    try {
-      // Tentativa 1: Direta via Proxy CORS (Usa o IP do usuário, que não é bloqueado)
-      const targetUrl = `${BYBIT_API}&t=${Date.now()}`;
-      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
-      
-      if (!res.ok) throw new Error(`Conexão instável (Status ${res.status})`);
-      const tickerData = await res.json();
-      
-      if (!tickerData.result?.list) throw new Error("Dados de mercado indisponíveis no momento");
+    
+    const targetUrl = `https://api.bybit.com/v5/market/tickers?category=linear&t=${Date.now()}`;
+    let success = false;
 
-      const allPairs = tickerData.result.list
-        .filter((t: any) => t.symbol.endsWith('USDT'))
-        .sort((a: any, b: any) => parseFloat(b.turnover24h) - parseFloat(a.turnover24h))
-        .slice(0, 25);
+    for (const getProxyUrl of PROXY_LIST) {
+      if (success) break;
+      
+      try {
+        const res = await fetch(getProxyUrl(targetUrl), { cache: 'no-store' });
+        if (!res.ok) continue;
 
-      const results = await Promise.all(
-        allPairs.map(async (ticker: any) => {
-          const pairName = ticker.symbol.replace('USDT', '');
-          try {
-            const analysis = await analyzePair(pairName);
-            
-            if (analysis.score >= 10) {
-              const existing = loadSignals();
-              const alreadyOpen = existing.find(s => s.par === pairName && s.resultado === 'ABERTO');
-              if (!alreadyOpen) {
-                const newSignal: any = {
-                  dataHora: new Date().toISOString(),
-                  par: pairName,
-                  pontuacao: analysis.score,
-                  direcao: (analysis.action as string).toUpperCase(),
-                  precoEntrada: analysis.setup?.entry,
-                  precoStop: analysis.setup?.sl,
-                  rr: analysis.setup?.rr,
-                  resultado: 'ABERTO',
-                  checklist: analysis.checklist,
-                  targetTP: analysis.setup?.tp
-                };
-                addSignal(newSignal);
-                saveSignalToCloud(newSignal);
+        const tickerData = await res.json();
+        if (!tickerData.result?.list) continue;
+
+        const allPairs = tickerData.result.list
+          .filter((t: any) => t.symbol.endsWith('USDT'))
+          .sort((a: any, b: any) => parseFloat(b.turnover24h) - parseFloat(a.turnover24h))
+          .slice(0, 25);
+
+        const results = await Promise.all(
+          allPairs.map(async (ticker: any) => {
+            const pairName = ticker.symbol.replace('USDT', '');
+            try {
+              const analysis = await analyzePair(pairName);
+              
+              if (analysis.score >= 10) {
+                const existing = loadSignals();
+                const alreadyOpen = existing.find(s => s.par === pairName && s.resultado === 'ABERTO');
+                if (!alreadyOpen) {
+                  const newSignal: any = {
+                    dataHora: new Date().toISOString(),
+                    par: pairName,
+                    pontuacao: analysis.score,
+                    direcao: (analysis.action as string).toUpperCase(),
+                    precoEntrada: analysis.setup?.entry,
+                    precoStop: analysis.setup?.sl,
+                    rr: analysis.setup?.rr,
+                    resultado: 'ABERTO',
+                    checklist: analysis.checklist,
+                    targetTP: analysis.setup?.tp
+                  };
+                  addSignal(newSignal);
+                  saveSignalToCloud(newSignal);
+                }
               }
+
+              return {
+                pair: pairName,
+                score: analysis.score,
+                action: analysis.action as any,
+                statusText: analysis.checklist?.sweepConfirmado ? 'Setup Confirmado' : 'Aguardando Sweep',
+                checklist: analysis.checklist,
+                volume24h: parseFloat(ticker.turnover24h),
+                reasons: analysis.reasons,
+                setup: analysis.setup,
+                priceChange24h: ticker.price24hPcnt,
+                lastPrice: ticker.lastPrice,
+                high24h: ticker.highPrice24h,
+                low24h: ticker.lowPrice24h,
+                bias: analysis.bias,
+                session: analysis.session,
+                indicators: analysis.indicators
+              };
+            } catch (err) {
+              return null;
             }
+          })
+        );
 
-            return {
-              pair: pairName,
-              score: analysis.score,
-              action: analysis.action as any,
-              statusText: analysis.checklist?.sweepConfirmado ? 'Setup Confirmado' : 'Aguardando Sweep',
-              checklist: analysis.checklist,
-              volume24h: parseFloat(ticker.turnover24h),
-              reasons: analysis.reasons,
-              setup: analysis.setup,
-              priceChange24h: ticker.price24hPcnt,
-              lastPrice: ticker.lastPrice,
-              high24h: ticker.highPrice24h,
-              low24h: ticker.lowPrice24h,
-              bias: analysis.bias,
-              session: analysis.session,
-              indicators: analysis.indicators
-            };
-          } catch (err) {
-            return null;
-          }
-        })
-      );
-
-      setScannedSignals((results.filter(r => r !== null) as ScannedSignal[]).sort((a, b) => b.score - a.score));
-      setLastUpdate(new Date());
-      setCountdown(REFRESH_INTERVAL);
-      
-    } catch (error: any) {
-      console.error('Erro no Scanner:', error);
-      setErrorMessage("Erro de Conexão com a Bybit. Tentando Reestabelecer...");
-    } finally {
-      setIsLoading(false);
+        setScannedSignals((results.filter(r => r !== null) as ScannedSignal[]).sort((a, b) => b.score - a.score));
+        setLastUpdate(new Date());
+        setCountdown(REFRESH_INTERVAL);
+        success = true;
+        
+      } catch (error: any) {
+        console.warn('Falha em um dos túneis, tentando o próximo...', error.message);
+      }
     }
+
+    if (!success) {
+      setErrorMessage("Todos os túneis falharam. Tentando Reconexão...");
+    }
+    
+    setIsLoading(false);
   }, [isLoading]);
 
   useEffect(() => {
