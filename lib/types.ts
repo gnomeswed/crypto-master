@@ -12,15 +12,47 @@ export const TIMEFRAME_LABELS: Record<Timeframe, string> = {
   H1: '1 Hora', H4: '4 Horas', D1: '1 Dia',
 };
 
+export interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 export interface SMCChecklist {
   liquidezIdentificada: boolean;
   sweepConfirmado: boolean;
-  chochOuBos: boolean;
+  chochDetectado: boolean;
   orderBlockQualidade: boolean;
   contextoMacroAlinhado: boolean;
   volumeAlinhado: boolean;
   rrMinimoTresUm: boolean;
   entradaNaReacao: boolean;
+}
+
+export interface SMCAnalysis {
+  score: number;
+  action: 'Long' | 'Short' | 'Aguardar' | 'Evitar';
+  reasons: string[];
+  checklist: SMCChecklist;
+  setup: {
+    entry: number;
+    tp: number;
+    sl: number;
+    rr: number;
+  };
+  bias: number;
+  session: {
+    name: string;
+    color: string;
+  };
+  indicators: {
+    rsi: number;
+    ema200: number;
+    volume: string;
+  };
 }
 
 export interface RiskConfig {

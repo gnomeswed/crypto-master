@@ -60,22 +60,23 @@ function calculateSMC(candles: Candle[], pair: string): SMCAnalysis {
   
   // Checklist SMC
   const checklist = {
-    liquidezCapturada: lowWick > prev.low * 0.001 || highWick > prev.high * 0.001,
+    liquidezIdentificada: lowWick > prev.low * 0.001 || highWick > prev.high * 0.001,
     sweepConfirmado: isRejection,
     chochDetectado: (isBullish && last.close > prev.high) || (!isBullish && last.close < prev.low),
-    orderBlockValido: bodySize > (candles[candles.length - 3].high - candles[candles.length - 3].low),
-    contextoMacro: true,
-    entradaConfirmada: isRejection && bodySize < (highWick + lowWick),
-    rrMinimo: true
+    orderBlockQualidade: bodySize > (candles[candles.length - 3].high - candles[candles.length - 3].low),
+    contextoMacroAlinhado: true,
+    volumeAlinhado: last.volume > 100000,
+    entradaNaReacao: isRejection && bodySize < (highWick + lowWick),
+    rrMinimoTresUm: true
   };
 
   // Cálculo de Pontuação (0-10)
   let score = 0;
-  if (checklist.liquidezCapturada) score += 2;
+  if (checklist.liquidezIdentificada) score += 2;
   if (checklist.sweepConfirmado) score += 3;
   if (checklist.chochDetectado) score += 2;
-  if (checklist.orderBlockValido) score += 2;
-  if (checklist.entradaConfirmada) score += 1;
+  if (checklist.orderBlockQualidade) score += 2;
+  if (checklist.entradaNaReacao) score += 1;
 
   const bias = isBullish ? 70 : 30;
   const action = score >= 8 ? (isBullish ? 'Long' : 'Short') : 'Aguardar';
