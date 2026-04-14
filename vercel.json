@@ -1,0 +1,13 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "regions": ["sao1"],
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/bybit/:path*",
+      "destination": "https://api.bybit.com/:path*"
+    }
+  ]
+}
