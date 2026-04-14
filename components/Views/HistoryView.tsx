@@ -175,7 +175,7 @@ function ExpandedRow({ s }: { s: Signal }) {
             {s.relatorio && (
               <div className="bg-slate-900/40 rounded-xl p-3 border border-blue-500/20">
                 <p className="text-[8px] font-bold text-blue-400 uppercase tracking-widest mb-1">Relatório do Agente</p>
-                <p className="text-[9px] text-slate-400 leading-relaxed">{s.relatorio}</p>
+                <p className="text-[9px] text-slate-400 leading-relaxed whitespace-pre-wrap font-mono">{s.relatorio}</p>
               </div>
             )}
           </div>

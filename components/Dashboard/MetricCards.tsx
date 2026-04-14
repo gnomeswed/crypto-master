@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useSignals } from "@/lib/SignalContext";
 import { loadSignals } from "@/lib/storage";
@@ -110,7 +110,7 @@ function HistExtrato({ signal, onGoToChart }: { signal: Signal; onGoToChart: (pa
   return (
     <>
       <div
-        onClick={() => !isOpen && setExpanded(p => !p)}
+        onClick={() => setExpanded(p => !p)}
         className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
           isOpen
             ? "border-amber-500/10 bg-amber-500/5 opacity-80"
@@ -197,16 +197,12 @@ function HistExtrato({ signal, onGoToChart }: { signal: Signal; onGoToChart: (pa
             </span>
           )}
 
-          {!isOpen && (
-            expanded
-              ? <ChevronUp className="w-3 h-3 text-slate-500 mt-0.5" />
-              : <ChevronDown className="w-3 h-3 text-slate-600 mt-0.5" />
-          )}
+          {expanded ? <ChevronUp className="w-3 h-3 text-slate-500 mt-0.5" /> : <ChevronDown className="w-3 h-3 text-slate-600 mt-0.5" />}
         </div>
       </div>
 
       {/* Detalhe expandido */}
-      {expanded && !isOpen && (
+      {expanded && (
         <div className="mx-2 mb-1 p-3 rounded-xl bg-slate-950/60 border border-dashed border-slate-800 grid grid-cols-3 gap-2">
           <div>
             <p className="text-[7px] font-bold text-slate-600 uppercase mb-1">Entrada</p>
@@ -236,6 +232,12 @@ function HistExtrato({ signal, onGoToChart }: { signal: Signal; onGoToChart: (pa
             <div className="col-span-3">
               <p className="text-[7px] font-bold text-slate-600 uppercase mb-1">Motivo Fechamento</p>
               <p className="text-[9px] text-slate-300">{signal.fechamentoMotivo}</p>
+            </div>
+          )}
+          {signal.relatorio && (
+            <div className="col-span-3 mt-1 p-3 bg-slate-900/50 rounded-xl border border-blue-500/20">
+              <p className="text-[8px] font-bold text-blue-500/60 uppercase mb-1">Relatório SMC</p>
+              <p className="text-[9px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">{signal.relatorio}</p>
             </div>
           )}
           <div className="col-span-3 flex gap-2 mt-1">
