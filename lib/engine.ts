@@ -305,18 +305,49 @@ function detectIDM(candles: Candle[], isBullish: boolean): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════
-// MÓDULO 4: TP DINÂMICO — Próxima Pool de Liquidez (PDH/PDL)
-// ═══════════════════════════════════════════════════════════
+// MÓDULO 4: TP/SL DINÂMICO — ATR-based, mínimo 1.5% para 10x leverage
+// ═══════════════════════════════════════════════════════════════════════
+// Regra: com 10x alavancagem, 1% movimento = 10% no capital.
+// SL mínimo: 1.5% bruto (= 15% drawdown com 10x). Ideal: 1.5× ATR.
 function calculateDynamicTP(candles: Candle[], isBullish: boolean, entryPrice: number): { tp: number; sl: number; rr: number } {
   const lookback = candles.slice(-20, -1);
   const pdh = Math.max(...lookback.map(c => c.high));
   const pdl = Math.min(...lookback.map(c => c.low));
-  const last = candles[candles.length - 1];
-  const sl = isBullish ? last.low * 0.997 : last.high * 1.003;
-  let tp = isBullish ? (pdh > entryPrice ? pdh : entryPrice * 1.025) : (pdl < entryPrice ? pdl : entryPrice * 0.975);
-  const rr = Math.abs(sl - entryPrice) > 0 ? parseFloat((Math.abs(tp - entryPrice) / Math.abs(sl - entryPrice)).toFixed(1)) : 3;
+
+  // ATR dos últimos 14 candles
+  const atr = candles.slice(-14).reduce((sum, c, i, arr) => {
+    if (i === 0) return sum;
+    const tr = Math.max(
+      c.high - c.low,
+      Math.abs(c.high - arr[i - 1].close),
+      Math.abs(c.low  - arr[i - 1].close)
+    );
+    return sum + tr;
+  }, 0) / 13;
+
+  // SL: 1.5× ATR ou mínimo 1.5% do preço (o MAIOR dos dois)
+  const atrSLDist = atr * 1.5;
+  const minSLDist = entryPrice * 0.015; // 1.5% mínimo absoluto
+  const slDist    = Math.max(atrSLDist, minSLDist);
+
+  const sl = isBullish
+    ? entryPrice - slDist   // LONG: SL abaixo da entrada
+    : entryPrice + slDist;  // SHORT: SL acima da entrada
+
+  // TP: usa PDH/PDL se RR >= 2:1, senão garante mínimo 3:1
+  let tp: number;
+  if (isBullish) {
+    const pdhRR = pdh > entryPrice ? Math.abs(pdh - entryPrice) / slDist : 0;
+    tp = pdhRR >= 2.0 ? pdh : entryPrice + slDist * 3.0;
+  } else {
+    const pdlRR = pdl < entryPrice ? Math.abs(entryPrice - pdl) / slDist : 0;
+    tp = pdlRR >= 2.0 ? pdl : entryPrice - slDist * 3.0;
+  }
+
+  const rr = parseFloat((Math.abs(tp - entryPrice) / slDist).toFixed(1));
   return { tp, sl, rr };
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // MÓDULO 5: RETESTE OB
