@@ -33,20 +33,93 @@ function Drawer({ title, open, onClose, children }: { title: string; open: boole
 }
 
 // ─── Linha de histórico ────────────────────────────────────
-function HistoryRow({ signal, onSelect }: { signal: Signal; onSelect: (pair: string) => void }) {
+function TradeDetailPanel({ signal, onGoToChart, onClose }: { signal: Signal; onGoToChart: () => void; onClose: () => void }) {
   const isWin  = signal.resultado === 'GREEN';
+  const isLoss = signal.resultado === 'LOSS';
+  const dur = Date.now() - new Date(signal.dataHora).getTime();
+  const m = Math.floor(dur / 60000);
+  const h = Math.floor(m / 60);
+  const durStr = h > 0 ? `${h}h ${m % 60}min` : `${m}min`;
+
+  return (
+    <div className="mt-2 mb-1 p-4 rounded-2xl border border-slate-700/60 bg-slate-900/60 flex flex-col gap-3 text-left">
+      {/* Resultado Header */}
+      <div className="flex items-center justify-between">
+        <span className={`text-xs font-black uppercase px-3 py-1 rounded-lg ${
+          isWin ? 'bg-emerald-500 text-white' : isLoss ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-300'
+        }`}>{signal.resultado}</span>
+        {signal.lucroFinalUsdt != null && (
+          <span className={`text-lg font-black font-mono ${
+            isWin ? 'text-emerald-400' : 'text-red-400'
+          }`}>{isWin ? '+' : '-'}${Math.abs(signal.lucroFinalUsdt).toFixed(2)} USDT</span>
+        )}
+      </div>
+
+      {/* Preços */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="bg-slate-950/50 p-2 rounded-xl border border-slate-800">
+          <p className="text-[7px] text-slate-600 uppercase font-bold mb-0.5">Entrada</p>
+          <p className="text-[10px] font-mono text-slate-300 font-bold">${signal.precoEntrada?.toFixed(4)}</p>
+        </div>
+        <div className="bg-slate-950/50 p-2 rounded-xl border border-emerald-500/20">
+          <p className="text-[7px] text-emerald-500/60 uppercase font-bold mb-0.5">Take Profit</p>
+          <p className="text-[10px] font-mono text-emerald-400 font-bold">${signal.targetTP?.toFixed(4) ?? '---'}</p>
+        </div>
+        <div className="bg-slate-950/50 p-2 rounded-xl border border-red-500/20">
+          <p className="text-[7px] text-red-500/60 uppercase font-bold mb-0.5">Stop Loss</p>
+          <p className="text-[10px] font-mono text-red-400 font-bold">${signal.precoStop?.toFixed(4)}</p>
+        </div>
+      </div>
+
+      {/* Dados extras */}
+      <div className="flex flex-wrap gap-2 text-[9px] text-slate-500">
+        <span>📅 {new Date(signal.dataHora).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
+        <span>⏱ Duração: {durStr}</span>
+        <span>Score: {signal.pontuacao}/16</span>
+        {signal.rr && <span>RR: 1:{signal.rr}</span>}
+        {signal.capitalSimulado && <span>Capital: ${signal.capitalSimulado.toFixed(2)}</span>}
+      </div>
+
+      {/* Relatório */}
+      {(signal as any).relatorio && (
+        <div className="bg-slate-950/40 p-3 rounded-xl border border-blue-500/20">
+          <p className="text-[8px] font-bold text-blue-400 uppercase mb-1">📋 Relatório do Agente</p>
+          <p className="text-[9px] text-slate-400 leading-relaxed">{(signal as any).relatorio}</p>
+        </div>
+      )}
+
+      {/* Ações */}
+      <div className="flex gap-2">
+        <button onClick={onGoToChart}
+          className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white text-[9px] font-bold uppercase tracking-wider rounded-xl transition-all">
+          Ver Gráfico →
+        </button>
+        <button onClick={onClose}
+          className="px-3 py-2 text-slate-500 hover:text-white text-[9px] font-bold uppercase rounded-xl border border-slate-800 hover:border-slate-600 transition-all">
+          Fechar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HistoryRow({ signal, onDetail, onGoToChart }: { signal: Signal; onDetail: (s: Signal) => void; onGoToChart: (pair: string) => void }) {
+  const isWin  = signal.resultado === 'GREEN';
+  const isLoss = signal.resultado === 'LOSS';
   const isOpen = signal.resultado === 'ABERTO';
   return (
     <div
-      onClick={() => !isOpen && onSelect(signal.par)}
-      className="flex items-center justify-between p-3 rounded-xl border border-slate-800/60 bg-slate-900/40 hover:bg-slate-800/40 transition-all cursor-pointer group"
+      onClick={() => !isOpen && onDetail(signal)}
+      className={`flex items-center justify-between p-3 rounded-xl border border-slate-800/60 bg-slate-900/40 transition-all group ${
+        isOpen ? 'opacity-60' : 'hover:bg-slate-800/40 cursor-pointer'
+      }`}
     >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-white">{signal.par}/USDT</span>
-          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${signal.direcao === 'LONG' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-            {signal.direcao}
-          </span>
+          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
+            signal.direcao === 'LONG' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+          }`}>{signal.direcao}</span>
         </div>
         <div className="flex items-center gap-2 text-[9px] text-slate-500 font-mono">
           <Clock className="w-2.5 h-2.5" />
@@ -55,9 +128,9 @@ function HistoryRow({ signal, onSelect }: { signal: Signal; onSelect: (pair: str
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg ${isWin ? 'bg-emerald-500 text-white' : isOpen ? 'bg-slate-700 text-slate-400 animate-pulse' : 'bg-red-500/90 text-white'}`}>
-          {signal.resultado}
-        </span>
+        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg ${
+          isWin ? 'bg-emerald-500 text-white' : isOpen ? 'bg-slate-700 text-slate-400 animate-pulse' : 'bg-red-500/90 text-white'
+        }`}>{signal.resultado}</span>
         {signal.lucroFinalUsdt != null && (
           <span className={`text-[9px] font-mono font-bold ${isWin ? 'text-emerald-400' : 'text-red-400'}`}>
             {isWin ? '+' : ''}${signal.lucroFinalUsdt.toFixed(2)}
@@ -70,6 +143,7 @@ function HistoryRow({ signal, onSelect }: { signal: Signal; onSelect: (pair: str
     </div>
   );
 }
+
 
 // ─── Signal Card (no drawer) ──────────────────────────────
 function SignalCard({ signal, onSelect }: { signal: any; onSelect: (pair: string) => void }) {
@@ -140,17 +214,27 @@ export default function MetricCards() {
       return b.score - a.score;
     });
 
+  const [selectedHistSignal, setSelectedHistSignal] = useState<Signal | null>(null);
+
   const handleSelectSignal = (pair: string) => {
     setSelectedPair(pair);
     setActiveView('DASHBOARD');
     setActiveDrawer(null);
   };
 
-  const handleSelectHistory = (pair: string) => {
+  // GREEN/LOSS: abre resumo inline no drawer (não navega)
+  const handleHistDetail = (signal: Signal) => {
+    setSelectedHistSignal(prev => prev?.id === signal.id ? null : signal);
+  };
+
+  // Botão "Ver Gráfico" dentro do resumo navega para o dashboard
+  const handleGoToChart = (pair: string) => {
     setSelectedPair(pair);
     setActiveView('DASHBOARD');
     setActiveDrawer(null);
+    setSelectedHistSignal(null);
   };
+
 
   return (
     <>
@@ -259,10 +343,25 @@ export default function MetricCards() {
           <p className="text-center text-slate-500 text-xs py-10">Nenhuma operação registrada ainda.</p>
         ) : (
           <div className="space-y-2">
-            {/* Losses primeiro (mais recentes) */}
-            {[...histSignals].sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()).map((s, i) => (
-              <HistoryRow key={s.id || i} signal={s} onSelect={handleSelectHistory} />
-            ))}
+            {[...histSignals]
+              .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
+              .map((s, i) => (
+                <div key={s.id || i}>
+                  <HistoryRow
+                    signal={s}
+                    onDetail={handleHistDetail}
+                    onGoToChart={handleGoToChart}
+                  />
+                  {/* Painel de detalhes expandido (inline no drawer) */}
+                  {selectedHistSignal?.id === s.id && (
+                    <TradeDetailPanel
+                      signal={s}
+                      onGoToChart={() => handleGoToChart(s.par)}
+                      onClose={() => setSelectedHistSignal(null)}
+                    />
+                  )}
+                </div>
+              ))}
           </div>
         )}
       </Drawer>
