@@ -162,7 +162,7 @@ export const RiskConfigSchema = z.object({
 });
 
 export const SignalSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   dataHora: z.string(),
   dataHoraFim: z.string().optional(),
   par: z.string(),
